@@ -55,13 +55,12 @@ async function loadDefaultDataset() {
     const result = await api(`/api/worldbank/fetch?indicators=${defaults}&countries=all&date_range=2020:2023&latest_only=true`);
     if (result.data && result.data.length > 0) {
       DATASET.length = 0; result.data.forEach(d => DATASET.push(d));
-      if (typeof VARIABLE_DEFS === 'undefined' || !VARIABLE_DEFS.length) {
-        const keys = Object.keys(DATASET[0]).filter(x => x !== 'country');
-        window.VARIABLE_DEFS = keys.map(x => ({
-          key: x, name: x.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-          unit: '', category: 'General', desc: 'World Bank indicator', icon: 'bar-chart-3', higherIsBetter: null
-        }));
-      }
+      // Always build VARIABLE_DEFS from fetched data (ignore embedded definitions)
+      const keys = Object.keys(DATASET[0]).filter(x => x !== 'country');
+      window.VARIABLE_DEFS = keys.map(x => ({
+        key: x, name: x.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        unit: '', category: 'General', desc: 'World Bank indicator', icon: 'bar-chart-3', higherIsBetter: null
+      }));
       DATASET_PACKS.length = 0;
       DATASET_PACKS.push({ name: 'World Bank Live', source: 'backend', description: 'Live World Bank indicators', variableCount: VARIABLE_DEFS.length, countryCount: DATASET.length, lastUpdated: '2024', requiresKey: false, dataset: DATASET, variables: VARIABLE_DEFS, loaded: true, file: 'backend' });
       CURRENT_DATASET = DATASET_PACKS[0];
