@@ -44,6 +44,79 @@ body{background:#0a0e1a;overflow-x:hidden;color:#cbd5e1;font-family:'Inter',sans
 </head>
 <body class="font-sans text-slate-300 min-h-screen bg-grid">
 
+<!-- LANDING PAGE -->
+<div id="landingOverlay" class="fixed inset-0 z-[70] bg-[#0a0e1a]/90 backdrop-blur-xl flex items-center justify-center p-4 transition-opacity duration-500">
+  <div class="max-w-2xl w-full text-center">
+    <!-- Brand -->
+    <div class="mb-8 fade-in" style="animation-delay:0.1s">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-brand-500/20">
+        <i data-lucide="compass" class="w-8 h-8 text-white"></i>
+      </div>
+      <h1 class="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-2">Global Insight Engine</h1>
+      <p class="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">Explore hidden relationships across 120+ development indicators. Load a dataset below or dive straight in.</p>
+    </div>
+
+    <!-- Quick Start -->
+    <div class="mb-8 fade-in" style="animation-delay:0.25s">
+      <div class="text-[0.65rem] text-slate-500 mb-3 uppercase tracking-wider font-medium">Quick Start</div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <button onclick="dismissLanding('hdi_2022')" class="group glass-light rounded-xl p-4 text-left transition-all hover:bg-brand-500/5 hover:border-brand-500/20 border border-transparent cursor-pointer">
+          <div class="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center mb-2 group-hover:bg-blue-500/25 transition-colors">
+            <i data-lucide="users" class="w-4 h-4 text-blue-400"></i>
+          </div>
+          <div class="text-xs font-medium text-white mb-0.5">Human Development</div>
+          <div class="text-[0.6rem] text-slate-500">UNDP · 5 vars</div>
+        </button>
+        <button onclick="dismissLanding('happiness_2023')" class="group glass-light rounded-xl p-4 text-left transition-all hover:bg-brand-500/5 hover:border-brand-500/20 border border-transparent cursor-pointer">
+          <div class="w-8 h-8 rounded-lg bg-rose-500/15 flex items-center justify-center mb-2 group-hover:bg-rose-500/25 transition-colors">
+            <i data-lucide="heart" class="w-4 h-4 text-rose-400"></i>
+          </div>
+          <div class="text-xs font-medium text-white mb-0.5">World Happiness</div>
+          <div class="text-[0.6rem] text-slate-500">UN SDSN · 8 vars</div>
+        </button>
+        <button onclick="dismissLanding('epi_2022')" class="group glass-light rounded-xl p-4 text-left transition-all hover:bg-brand-500/5 hover:border-brand-500/20 border border-transparent cursor-pointer">
+          <div class="w-8 h-8 rounded-lg bg-green-500/15 flex items-center justify-center mb-2 group-hover:bg-green-500/25 transition-colors">
+            <i data-lucide="leaf" class="w-4 h-4 text-green-400"></i>
+          </div>
+          <div class="text-xs font-medium text-white mb-0.5">Environment</div>
+          <div class="text-[0.6rem] text-slate-500">Yale/Columbia · 6 vars</div>
+        </button>
+        <button onclick="dismissLanding('wb:economy')" class="group glass-light rounded-xl p-4 text-left transition-all hover:bg-brand-500/5 hover:border-brand-500/20 border border-transparent cursor-pointer">
+          <div class="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center mb-2 group-hover:bg-emerald-500/25 transition-colors">
+            <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
+          </div>
+          <div class="text-xs font-medium text-white mb-0.5">Global Economy</div>
+          <div class="text-[0.6rem] text-slate-500">World Bank · 25 vars</div>
+        </button>
+        <button onclick="dismissLanding('innovation_2023')" class="group glass-light rounded-xl p-4 text-left transition-all hover:bg-brand-500/5 hover:border-brand-500/20 border border-transparent cursor-pointer">
+          <div class="w-8 h-8 rounded-lg bg-yellow-500/15 flex items-center justify-center mb-2 group-hover:bg-yellow-500/25 transition-colors">
+            <i data-lucide="lightbulb" class="w-4 h-4 text-yellow-400"></i>
+          </div>
+          <div class="text-xs font-medium text-white mb-0.5">Innovation</div>
+          <div class="text-[0.6rem] text-slate-500">WIPO · 8 vars</div>
+        </button>
+        <button onclick="dismissLanding('peace_2023')" class="group glass-light rounded-xl p-4 text-left transition-all hover:bg-brand-500/5 hover:border-brand-500/20 border border-transparent cursor-pointer">
+          <div class="w-8 h-8 rounded-lg bg-indigo-500/15 flex items-center justify-center mb-2 group-hover:bg-indigo-500/25 transition-colors">
+            <i data-lucide="shield" class="w-4 h-4 text-indigo-400"></i>
+          </div>
+          <div class="text-xs font-medium text-white mb-0.5">Peace & Security</div>
+          <div class="text-[0.6rem] text-slate-500">IEP · 9 vars</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-3 fade-in" style="animation-delay:0.4s">
+      <button onclick="dismissLanding()" class="px-6 py-2.5 rounded-xl bg-brand-600/80 text-sm font-medium text-white hover:bg-brand-500 transition-colors shadow-lg shadow-brand-500/15">
+        Get Started
+      </button>
+      <button onclick="dismissLandingAndOpenSources()" class="px-6 py-2.5 rounded-xl glass-light text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700/50 transition-colors">
+        Browse Full Library
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="statusBar" class="status-bar glass border-b border-brand-500/20">
   <div class="max-w-[1920px] mx-auto px-4 py-2 flex items-center justify-between">
     <div class="flex items-center gap-3">
@@ -326,6 +399,6 @@ body{background:#0a0e1a;overflow-x:hidden;color:#cbd5e1;font-family:'Inter',sans
 </div>
 
 <script src="/static/dataset_embed.js"></script>
-<script src="/static/app_v10.js"></script>
+<script src="/static/app_v11.js"></script>
 </body>
 </html>
