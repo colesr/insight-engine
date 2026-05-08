@@ -52,19 +52,16 @@ _loaded_datasets: Dict[str, Dict[str, Any]] = {}
 def _make_id() -> str:
     return hashlib.sha256(str(time.time()).encode()).hexdigest()[:12]
 
-# Root: serve the frontend app
-@app.get("/", response_class=HTMLResponse)
-def serve_index():
-    with open("static/index.html", "r") as f:
-        return f.read()
+# API routes must be defined BEFORE static file mount
 
 # Root health endpoint
 @app.get("/api/health")
 def health():
     return {"status": "ok", "datasets_loaded": len(_loaded_datasets), "cache_entries": len(_cache)}
 
-# Static files — serve at /static/ for JS, CSS, images
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Static files — mount at root with html=True for SPA behavior
+# API routes defined above take priority, so /api/* still works
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 # ============================================================================
 # WORLD BANK API
