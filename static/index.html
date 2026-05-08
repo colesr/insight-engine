@@ -41,6 +41,13 @@ body{background:#0a0e1a;overflow-x:hidden;color:#cbd5e1;font-family:'Inter',sans
 .gem-card{background:rgba(30,41,59,0.5);border:1px solid rgba(245,158,11,0.15);border-radius:14px;padding:16px;transition:all .25s}.gem-card:hover{border-color:rgba(245,158,11,0.35);box-shadow:0 8px 30px rgba(245,158,11,0.08)}
 .peer-toggle{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;background:rgba(30,41,59,0.5);border:1px solid rgba(51,65,85,0.4);font-size:0.7rem;cursor:pointer}.peer-toggle.active{background:rgba(6,182,212,0.12);border-color:rgba(6,182,212,0.3);color:#22d3ee}
 .ticker-scroll{animation:tickerScroll 12s linear infinite}@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+.animate-gradient-shift{animation:gradientShift 6s ease infinite}
+@keyframes logoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
+.animate-logo-float{animation:logoFloat 3s ease-in-out infinite}
+@keyframes orbit{0%{transform:translate(6px,6px);opacity:.4}25%{transform:translate(0,12px);opacity:.8}50%{transform:translate(-6px,6px);opacity:.4}75%{transform:translate(0,0);opacity:.8}100%{transform:translate(6px,6px);opacity:.4}}
+.animate-orbit{animation:orbit 4s linear infinite}
+@keyframes breathe{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.15);opacity:1}}
 </style>
 </head>
 <body class="font-sans text-slate-300 min-h-screen bg-grid">
@@ -143,8 +150,17 @@ body{background:#0a0e1a;overflow-x:hidden;color:#cbd5e1;font-family:'Inter',sans
 <header class="glass sticky top-0 z-50">
   <div class="max-w-[1920px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center">
-        <i data-lucide="compass" class="w-5 h-5 text-white"></i>
+      <div class="relative w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden group cursor-pointer" onclick="openChatbot('general')" title="Ask the Insight Guide">
+        <!-- Animated gradient background -->
+        <div class="absolute inset-0 bg-gradient-to-br from-brand-400 via-brand-500 to-brand-600 animate-gradient-shift" style="background-size:200% 200%"></div>
+        <!-- Soft glow ring -->
+        <div class="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" style="box-shadow:0 0 20px rgba(6,182,212,0.4)"></div>
+        <!-- Floating inner ring -->
+        <div class="absolute inset-0.5 rounded-md border border-white/10"></div>
+        <!-- Compass icon with subtle float -->
+        <i data-lucide="compass" class="relative w-5 h-5 text-white drop-shadow-sm animate-logo-float"></i>
+        <!-- Orbiting dot -->
+        <div class="absolute w-1 h-1 rounded-full bg-white/60 animate-orbit"></div>
       </div>
       <div>
         <h1 class="text-lg font-bold text-white tracking-tight">Global Insight Engine</h1>
@@ -174,6 +190,14 @@ body{background:#0a0e1a;overflow-x:hidden;color:#cbd5e1;font-family:'Inter',sans
       </label>
       <button onclick="showDatasetBrowser()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass-light text-xs text-slate-400 hover:text-white transition-colors">
         <i data-lucide="database" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">Sources</span>
+      </button>
+      <!-- AI Insight Guide -->
+      <button onclick="openChatbot('general')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass-light text-xs text-slate-400 hover:text-white transition-colors group" title="Ask the Insight Guide">
+        <span class="relative flex items-center justify-center w-4 h-4">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-brand-400 group-hover:text-brand-300 transition-colors"></i>
+          <span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-brand-400 animate-breathe"></span>
+        </span>
+        <span class="hidden sm:inline">Guide</span>
       </button>
     </div>
   </div>
@@ -269,8 +293,8 @@ body{background:#0a0e1a;overflow-x:hidden;color:#cbd5e1;font-family:'Inter',sans
       <div id="riskOpportunityBanner" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
       <div id="insightBanners" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div class="glass rounded-2xl p-5"><div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-white flex items-center gap-2"><i data-lucide="bar-chart-3" class="w-4 h-4 text-brand-400"></i>Distribution</h3></div><div class="h-64"><canvas id="distributionChart"></canvas></div></div>
-        <div class="glass rounded-2xl p-5"><div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-white flex items-center gap-2"><i data-lucide="network" class="w-4 h-4 text-brand-400"></i>Network</h3></div><div class="h-64 relative"><canvas id="networkCanvas" class="w-full h-full"></canvas></div></div>
+        <div class="glass rounded-2xl p-5"><div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-white flex items-center gap-2"><i data-lucide="bar-chart-3" class="w-4 h-4 text-brand-400"></i>Distribution</h3><button onclick="openChatbotFor('distribution')" class="explain-chart-btn px-2 py-1 rounded-md glass-light text-[0.65rem] text-slate-400 hover:text-brand-300 hover:border-brand-500/20 border border-transparent transition-all flex items-center gap-1"><i data-lucide="message-circle" class="w-3 h-3"></i>Explain</button></div><div class="h-64"><canvas id="distributionChart"></canvas></div></div>
+        <div class="glass rounded-2xl p-5"><div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-white flex items-center gap-2"><i data-lucide="network" class="w-4 h-4 text-brand-400"></i>Network</h3><button onclick="openChatbotFor('network')" class="explain-chart-btn px-2 py-1 rounded-md glass-light text-[0.65rem] text-slate-400 hover:text-brand-300 hover:border-brand-500/20 border border-transparent transition-all flex items-center gap-1"><i data-lucide="message-circle" class="w-3 h-3"></i>Explain</button></div><div class="h-64 relative"><canvas id="networkCanvas" class="w-full h-full"></canvas></div></div>
       </div>
       <div class="glass rounded-2xl p-5">
         <div class="flex items-center justify-between mb-5">
@@ -282,10 +306,11 @@ body{background:#0a0e1a;overflow-x:hidden;color:#cbd5e1;font-family:'Inter',sans
           </div>
         </div>
         <div id="correlationBars" class="space-y-3"></div>
+        <button onclick="openChatbotFor('correlations')" class="explain-chart-btn mt-3 w-full px-3 py-2 rounded-lg glass-light text-xs text-slate-400 hover:text-brand-300 hover:border-brand-500/20 border border-transparent transition-all flex items-center justify-center gap-2"><i data-lucide="message-circle" class="w-3.5 h-3.5"></i>Explain how correlations work</button>
       </div>
-      <div class="glass rounded-2xl p-5"><div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-white flex items-center gap-2"><i data-lucide="scatter-chart" class="w-4 h-4 text-brand-400"></i>Explore</h3><select id="scatterVarSelect" onchange="updateScatterPlot()" class="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-brand-500/50"></select></div><div class="h-80"><canvas id="scatterChart"></canvas></div></div>
+      <div class="glass rounded-2xl p-5"><div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-white flex items-center gap-2"><i data-lucide="scatter-chart" class="w-4 h-4 text-brand-400"></i>Explore</h3><div class="flex items-center gap-2"><select id="scatterVarSelect" onchange="updateScatterPlot()" class="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-brand-500/50"></select><button onclick="openChatbotFor('scatter')" class="explain-chart-btn px-2 py-1 rounded-md glass-light text-[0.65rem] text-slate-400 hover:text-brand-300 hover:border-brand-500/20 border border-transparent transition-all flex items-center gap-1"><i data-lucide="message-circle" class="w-3 h-3"></i>Explain</button></div></div><div class="h-80"><canvas id="scatterChart"></canvas></div></div>
       <div class="glass rounded-2xl p-5"><h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2"><i data-lucide="lightbulb" class="w-4 h-4 text-brand-400"></i>Insights</h3><div id="insightCards" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div></div>
-      <div class="glass rounded-2xl p-5"><h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2"><i data-lucide="grid-3x3" class="w-4 h-4 text-brand-400"></i>Heatmap</h3><div class="overflow-x-auto"><canvas id="heatmapCanvas"></canvas></div></div>
+      <div class="glass rounded-2xl p-5"><div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-white flex items-center gap-2"><i data-lucide="grid-3x3" class="w-4 h-4 text-brand-400"></i>Heatmap</h3><button onclick="openChatbotFor('heatmap')" class="explain-chart-btn px-2 py-1 rounded-md glass-light text-[0.65rem] text-slate-400 hover:text-brand-300 hover:border-brand-500/20 border border-transparent transition-all flex items-center gap-1"><i data-lucide="message-circle" class="w-3 h-3"></i>Explain</button></div><div class="overflow-x-auto"><canvas id="heatmapCanvas"></canvas></div></div>
     </div>
   </main>
 </div>
@@ -408,7 +433,88 @@ body{background:#0a0e1a;overflow-x:hidden;color:#cbd5e1;font-family:'Inter',sans
   </div>
 </div>
 
+<!-- AI INSIGHT GUIDE CHATBOT -->
+<div id="chatbotPanel" class="fixed inset-y-0 right-0 w-full sm:w-[480px] z-[80] transform translate-x-full transition-transform duration-500 ease-out flex flex-col" style="background:rgba(10,14,26,0.92);backdrop-filter:blur(24px);border-left:1px solid rgba(34,211,238,0.08)">
+  <!-- Header -->
+  <div class="flex items-center justify-between p-5 border-b border-slate-700/30">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center">
+        <i data-lucide="sparkles" class="w-4 h-4 text-white"></i>
+      </div>
+      <div>
+        <div class="text-sm font-semibold text-white">Insight Guide</div>
+        <div class="text-[0.65rem] text-slate-500 flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-breathe"></span>
+          Ready to help
+        </div>
+      </div>
+    </div>
+    <button onclick="closeChatbot()" class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-700/50 transition-colors">
+      <i data-lucide="x" class="w-4 h-4 text-slate-400"></i>
+    </button>
+  </div>
+
+  <!-- Context pill -->
+  <div class="px-5 pt-3 pb-1">
+    <div id="chatbotContextPill" class="hidden inline-flex items-center gap-2 px-3 py-1.5 rounded-full glass-light text-xs text-slate-400">
+      <i data-lucide="target" class="w-3 h-3 text-brand-400"></i>
+      <span id="chatbotContextText">Looking at: GDP per Capita</span>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div id="chatbotMessages" class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+    <!-- Welcome message -->
+    <div class="flex gap-3">
+      <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex-shrink-0 flex items-center justify-center mt-0.5">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-white"></i>
+      </div>
+      <div class="space-y-2">
+        <p class="text-sm text-slate-300 leading-relaxed">Hi there! I'm your <strong class="text-brand-300">Insight Guide</strong>. I can help you understand any chart, number, or visual on this page — in plain language, no jargon.</p>
+        <p class="text-sm text-slate-300 leading-relaxed">Just ask me things like:</p>
+        <ul class="text-sm text-slate-400 space-y-1 ml-1">
+          <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">›</span> <span>"What does this Network Diagram mean?"</span></li>
+          <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">›</span> <span>"Explain the Distribution chart in detail"</span></li>
+          <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">›</span> <span>"How is the correlation calculated?"</span></li>
+          <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">›</span> <span>"Why is this country an outlier?"</span></li>
+        </ul>
+        <p class="text-sm text-slate-400 mt-2">Or click any <span class="text-brand-300 font-medium">📎 Explain this</span> button next to a chart for instant context.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick chips -->
+  <div id="chatbotQuickChips" class="px-5 pb-2 flex flex-wrap gap-2">
+    <button onclick="sendChatbotMessage('Explain the currently selected variable')" class="px-3 py-1.5 rounded-full glass-light text-xs text-slate-400 hover:text-brand-300 hover:border-brand-500/20 border border-transparent transition-all">Explain this variable</button>
+    <button onclick="sendChatbotMessage('How do I read the Network Diagram?')" class="px-3 py-1.5 rounded-full glass-light text-xs text-slate-400 hover:text-brand-300 hover:border-brand-500/20 border border-transparent transition-all">Network Diagram</button>
+    <button onclick="sendChatbotMessage('What do the correlation numbers mean?')" class="px-3 py-1.5 rounded-full glass-light text-xs text-slate-400 hover:text-brand-300 hover:border-brand-500/20 border border-transparent transition-all">Correlations</button>
+    <button onclick="sendChatbotMessage('How are outliers detected?')" class="px-3 py-1.5 rounded-full glass-light text-xs text-slate-400 hover:text-brand-300 hover:border-brand-500/20 border border-transparent transition-all">Outliers</button>
+  </div>
+
+  <!-- Input -->
+  <div class="p-4 border-t border-slate-700/30">
+    <div class="flex items-end gap-2 glass-light rounded-xl px-4 py-2">
+      <textarea id="chatbotInput" rows="1" placeholder="Ask me anything about the data or visuals..." class="flex-1 bg-transparent text-sm text-white placeholder-slate-500 resize-none focus:outline-none leading-relaxed" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatbotMessage();}"></textarea>
+      <button onclick="sendChatbotMessage()" class="w-8 h-8 rounded-lg bg-brand-600/80 hover:bg-brand-500 flex items-center justify-center transition-colors flex-shrink-0">
+        <i data-lucide="arrow-up" class="w-4 h-4 text-white"></i>
+      </button>
+    </div>
+    <p class="text-center text-[0.6rem] text-slate-600 mt-2">Powered by on-device analysis. No data leaves your session.</p>
+  </div>
+</div>
+
+<!-- Chatbot overlay backdrop -->
+<div id="chatbotBackdrop" onclick="closeChatbot()" class="fixed inset-0 z-[75] bg-black/40 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300"></div>
+
+<!-- "Explain this" tooltip style floating buttons for charts -->
+<div id="explainTooltip" class="fixed z-[55] hidden" style="pointer-events:none">
+  <div class="glass-light rounded-lg px-2.5 py-1.5 text-xs text-brand-300 flex items-center gap-1.5 shadow-lg shadow-brand-500/10" style="pointer-events:auto">
+    <i data-lucide="message-circle" class="w-3 h-3"></i>
+    <span>Explain</span>
+  </div>
+</div>
+
 <script src="/static/dataset_embed.js"></script>
-<script src="/static/app_v12.js"></script>
+<script src="/static/app_v13.js"></script>
 </body>
 </html>
