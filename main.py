@@ -189,56 +189,65 @@ def fetch_worldbank(
         wb_code = WORLDBANK_INDICATORS.get(ind_id)
         if not wb_code:
             continue
-        url = f"{WORLD_BANK_BASE}/country/{countries}/indicator/{wb_code}"
-        try:
-            r = requests.get(url, params={
-                "format": "json", "per_page": 300, "date": date_range
-            }, timeout=30)
-            data = r.json()
-            if len(data) < 2:
+        # Fetch all pages for this indicator
+        page = 1
+        all_wb_data = []
+        while True:
+            paged_url = f"{WORLD_BANK_BASE}/country/{countries}/indicator/{wb_code}"
+            try:
+                r = requests.get(paged_url, params={
+                    "format": "json", "per_page": 300, "date": date_range, "page": page
+                }, timeout=30)
+                paged_data = r.json()
+                if len(paged_data) < 2 or not paged_data[1]:
+                    break
+                all_wb_data.extend(paged_data[1])
+                meta = paged_data[0]
+                if meta.get("page", 1) >= meta.get("pages", 1):
+                    break
+                page += 1
+            except Exception as e:
+                print(f"WB page fetch error for {ind_id} page {page}: {e}")
+                break
+
+        # Known World Bank aggregate/region codes (not real countries)
+        # Observed from actual API: 1A,1W,4E,7E,8S,B8,F1,OE,EU, ZH,ZI,ZG,ZF,Z4,Z7,ZJ,ZQ,ZT, S1-S4, T2-T7, V1-V4, XC-XT,XY, and long 3-char region codes
+        WB_AGGREGATE_CODES = {
+            "1A","1W","4E","7E","8S","B8","F1","OE","EU",
+            "ZH","ZI","ZG","ZF","Z4","Z7","ZJ","ZQ","ZT",
+            "S1","S2","S3","S4","T2","T3","T4","T5","T6","T7",
+            "V1","V2","V3","V4",
+            "XC","XD","XE","XF","XG","XH","XI","XJ","XL","XM","XN","XO","XP","XQ","XT","XU","XY",
+            "AFE","AFW","ARB","CSS","CEB","EAP","EAR","EAS","ECA","ECS",
+            "EUU","FCS","HPC","IBD","IBT","IDA","IDB","IDX","INX",
+            "LAC","LCN","LDC","LIC","LMC","LMY","LTE","MEA","MIC","MNA",
+            "NAC","OED","OSS","PSS","PRE","PST","SAS","SSA","SSF","SST",
+            "TEA","TEC","TLA","TMN","TSA","TSS","WLD"
+        }
+        # Common aggregate name patterns
+        AGGREGATE_NAME_PATTERNS = ["(excluding", "income levels)", "all income", "small states", "demographic dividend", "World", "Arab World", "European Union"]
+        for item in all_wb_data:
+            country_info = item.get("country", {})
+            country_id = country_info.get("id", "")
+            country_raw = country_info.get("value", "")
+            country = normalize_country(country_raw)
+            value = item.get("value")
+            year = item.get("date")
+            if not country or value is None:
                 continue
-            # Known World Bank aggregate/region codes (not real countries)
-            # Observed from actual API: 1A,1W,4E,7E,8S,B8,S1-S4,T2-T7,V1-V4,XC-XT,XY,Z4-ZJ,ZQ,ZT,ZF,ZG,ZH,ZI, and long 3-char region codes
-            # Aggregate codes discovered from live World Bank API - DO NOT REMOVE
-            # 2024-01-08: Added missing codes ZH, ZI, 1A, 1W, EU, etc.
-            WB_AGGREGATE_CODES = {
-                "1A","1W","4E","7E","8S","B8","F1","OE","EU",
-                "ZH","ZI","ZG","ZF","Z4","Z7","ZJ","ZQ","ZT",
-                "S1","S2","S3","S4","T2","T3","T4","T5","T6","T7",
-                "V1","V2","V3","V4",
-                "XC","XD","XE","XF","XG","XH","XI","XJ","XL","XM","XN","XO","XP","XQ","XT","XU","XY",
-                "AFE","AFW","ARB","CSS","CEB","EAP","EAR","EAS","ECA","ECS",
-                "EUU","FCS","HPC","IBD","IBT","IDA","IDB","IDX","INX",
-                "LAC","LCN","LDC","LIC","LMC","LMY","LTE","MEA","MIC","MNA",
-                "NAC","OED","OSS","PSS","PRE","PST","SAS","SSA","SSF","SST",
-                "TEA","TEC","TLA","TMN","TSA","TSS","WLD"
-            }
-            # Common aggregate name patterns
-            AGGREGATE_NAME_PATTERNS = ["(excluding", "income levels)", "all income", "small states", "demographic dividend", "World", "Arab World", "European Union"]
-            for item in data[1]:
-                country_info = item.get("country", {})
-                country_id = country_info.get("id", "")
-                country_raw = country_info.get("value", "")
-                country = normalize_country(country_raw)
-                value = item.get("value")
-                year = item.get("date")
-                if not country or value is None:
-                    continue
-                # Skip known aggregate codes AND all single/double-letter codes (they're all aggregates)
-                if country_id in WB_AGGREGATE_CODES:
-                    continue
-                # Also skip if name contains aggregate patterns
-                if any(p in country_raw for p in AGGREGATE_NAME_PATTERNS):
-                    continue
-                if country not in records:
-                    records[country] = {"country": country}
-                # Keep the latest year for each indicator
-                current = records[country].get(ind_id)
-                if current is None or (year and year > current.get("_year", "0")):
-                    records[country][ind_id] = round(float(value), 3)
-                    records[country]["_year_" + ind_id] = year
-        except Exception as e:
-            print(f"WB fetch error for {ind_id}: {e}")
+            # Skip known aggregate codes AND all single/double-letter codes (they're all aggregates)
+            if country_id in WB_AGGREGATE_CODES:
+                continue
+            # Also skip if name contains aggregate patterns
+            if any(p in country_raw for p in AGGREGATE_NAME_PATTERNS):
+                continue
+            if country not in records:
+                records[country] = {"country": country}
+            # Keep the latest year for each indicator
+            current = records[country].get(ind_id)
+            if current is None or (year and year > current.get("_year", "0")):
+                records[country][ind_id] = round(float(value), 3)
+                records[country]["_year_" + ind_id] = year
         time.sleep(0.15)  # Rate limit
 
     # Clean up internal year fields
