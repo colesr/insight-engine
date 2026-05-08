@@ -52,13 +52,14 @@ _loaded_datasets: Dict[str, Dict[str, Any]] = {}
 def _make_id() -> str:
     return hashlib.sha256(str(time.time()).encode()).hexdigest()[:12]
 
-# --- STATIC FILES ---
-# Serve the frontend from /static, and redirect root to /static/index.html
-app.mount("/static", StaticFiles(directory="static", html=True), name="static")
+# Root health endpoint (only JSON when explicitly accessed)
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "datasets_loaded": len(_loaded_datasets), "cache_entries": len(_cache)}
 
-@app.get("/")
-def root():
-    return {"message": "Insight Engine API. Visit /static for the app."}
+# Static files — serve frontend from root path
+# This MUST come after all API routes so API routes take priority
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 # ============================================================================
 # WORLD BANK API
