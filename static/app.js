@@ -113,7 +113,7 @@ async function showDatasetBrowser() {
     <div class="glass-light rounded-xl p-5 cursor-pointer transition-all hover:bg-brand-500/10 hover:border-brand-500/30 border border-transparent ${CURRENT_DATASET && CURRENT_DATASET.name === p.name ? 'border-brand-500/40 bg-brand-500/5' : ''}" onclick="selectDatasetPack('${p.name}');document.getElementById('datasetBrowserModal').remove()">
       <div class="flex items-center justify-between mb-3"><div class="flex items-center gap-2"><div class="w-8 h-8 rounded-lg bg-brand-500/15 flex items-center justify-center"><i data-lucide="database" class="w-4 h-4 text-brand-400"></i></div><span class="text-sm font-semibold text-white">${p.name}</span></div>${CURRENT_DATASET && CURRENT_DATASET.name === p.name ? '<span class="text-[0.65rem] px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300">Active</span>' : ''}</div>
       <div class="text-xs text-slate-400 mb-3">${p.description}</div>
-      <div class="flex items-center gap-3 text-[0.65rem] text-slate-500"><span>${p.variableCount} vars</span><span>${p.countryCount} countries</span></div>
+      <div class="flex items-center gap-3 text-[0.65rem] text-slate-500"><span>${p.variableCount} variables</span></div>
     </div>
   `).join('');
   let apiSection = '';
@@ -226,7 +226,7 @@ async function init() {
   restoreFromURL();
   showStatus('Ready', 100);
   const dp = document.getElementById('dataPointCount');
-  if (dp) dp.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span><span>${dataset.length} countries · ${variableDefs.length} variables</span>`;
+  if (dp) dp.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span><span>${variableDefs.length} variables</span>`;
 }
 
 function initTabs() {
