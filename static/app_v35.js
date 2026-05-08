@@ -1,27 +1,35 @@
 // === app_v35.js — Bootstrap that loads v34 + coastline patch ===
 (function() {
+  // Paths relative to the static mount point
+  var base = '/static';
   var SCRIPTS = [
-    '/static/app_v34.js',      // Main application
-    '/static/globe_patch.js'   // Coastline overlay patch
+    base + '/app_v34.js',
+    base + '/globe_patch.js'
   ];
   
-  var loaded = 0;
-  function onLoad() {
-    loaded++;
-    if (loaded === SCRIPTS.length) {
-      console.log('app_v35: all scripts loaded');
-    }
-  }
+  console.log('app_v35: booting, loading ' + SCRIPTS.length + ' scripts...');
   
-  SCRIPTS.forEach(function(src) {
+  function loadScript(src, callback) {
     var s = document.createElement('script');
     s.src = src;
     s.async = false;
-    s.onload = onLoad;
-    s.onerror = function() {
-      console.warn('app_v35: failed to load ' + src);
-      onLoad(); // Don't block
+    s.onload = function() { console.log('app_v35: loaded ' + src); callback(true); };
+    s.onerror = function() { 
+      console.warn('app_v35: failed to load ' + src); 
+      callback(false); 
     };
     document.head.appendChild(s);
-  });
+  }
+  
+  function loadAll(idx) {
+    if (idx >= SCRIPTS.length) {
+      console.log('app_v35: all scripts loaded');
+      return;
+    }
+    loadScript(SCRIPTS[idx], function(ok) {
+      loadAll(idx + 1);
+    });
+  }
+  
+  loadAll(0);
 })();
