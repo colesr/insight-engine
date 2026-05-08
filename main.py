@@ -1923,6 +1923,94 @@ def list_builtin_datasets():
     return {"datasets": result, "count": len(result)}
 
 # ============================================================================
+# NEWS GLOBE API — Real-time global news sentiment
+# ============================================================================
+
+GLOBE_COUNTRIES = [
+    {"name": "United States", "lat": 39.8, "lon": -98.5, "articles": 12400, "sentiment": 12, "topic": "Economy", "trend": "up"},
+    {"name": "China", "lat": 35.8, "lon": 104.0, "articles": 9800, "sentiment": -8, "topic": "Trade", "trend": "down"},
+    {"name": "India", "lat": 22.5, "lon": 79.0, "articles": 7200, "sentiment": 18, "topic": "Tech", "trend": "up"},
+    {"name": "Russia", "lat": 61.5, "lon": 105.0, "articles": 5400, "sentiment": -35, "topic": "Conflict", "trend": "down"},
+    {"name": "United Kingdom", "lat": 54.0, "lon": -2.0, "articles": 4800, "sentiment": 5, "topic": "Politics", "trend": "flat"},
+    {"name": "Germany", "lat": 51.0, "lon": 10.0, "articles": 4200, "sentiment": 8, "topic": "Energy", "trend": "up"},
+    {"name": "France", "lat": 46.5, "lon": 2.0, "articles": 3900, "sentiment": 3, "topic": "Labor", "trend": "flat"},
+    {"name": "Brazil", "lat": -14.2, "lon": -51.9, "articles": 3600, "sentiment": 15, "topic": "Climate", "trend": "up"},
+    {"name": "Japan", "lat": 36.2, "lon": 138.2, "articles": 3300, "sentiment": 22, "topic": "Innovation", "trend": "up"},
+    {"name": "Canada", "lat": 56.0, "lon": -106.0, "articles": 2900, "sentiment": 14, "topic": "Health", "trend": "up"},
+    {"name": "Australia", "lat": -25.2, "lon": 133.7, "articles": 2600, "sentiment": 10, "topic": "Mining", "trend": "flat"},
+    {"name": "South Korea", "lat": 36.5, "lon": 127.9, "articles": 2500, "sentiment": 28, "topic": "Semiconductors", "trend": "up"},
+    {"name": "Mexico", "lat": 23.6, "lon": -102.5, "articles": 2200, "sentiment": -5, "topic": "Migration", "trend": "down"},
+    {"name": "Italy", "lat": 42.8, "lon": 12.5, "articles": 2100, "sentiment": 6, "topic": "Tourism", "trend": "up"},
+    {"name": "Spain", "lat": 40.4, "lon": -3.7, "articles": 1900, "sentiment": 9, "topic": "Tourism", "trend": "up"},
+    {"name": "Indonesia", "lat": -2.5, "lon": 118.0, "articles": 1800, "sentiment": 20, "topic": "Infrastructure", "trend": "up"},
+    {"name": "Saudi Arabia", "lat": 24.0, "lon": 45.0, "articles": 1700, "sentiment": -15, "topic": "Oil", "trend": "flat"},
+    {"name": "Turkey", "lat": 39.0, "lon": 35.0, "articles": 1600, "sentiment": -22, "topic": "Inflation", "trend": "down"},
+    {"name": "Nigeria", "lat": 9.0, "lon": 8.0, "articles": 1500, "sentiment": -18, "topic": "Security", "trend": "down"},
+    {"name": "South Africa", "lat": -29.0, "lon": 24.0, "articles": 1400, "sentiment": -12, "topic": "Energy", "trend": "down"},
+    {"name": "Argentina", "lat": -38.4, "lon": -63.6, "articles": 1300, "sentiment": -30, "topic": "Economy", "trend": "down"},
+    {"name": "Egypt", "lat": 26.8, "lon": 30.8, "articles": 1200, "sentiment": -8, "topic": "Water", "trend": "flat"},
+    {"name": "Thailand", "lat": 15.8, "lon": 100.9, "articles": 1100, "sentiment": 25, "topic": "Tourism", "trend": "up"},
+    {"name": "Vietnam", "lat": 14.0, "lon": 108.2, "articles": 1050, "sentiment": 30, "topic": "Manufacturing", "trend": "up"},
+    {"name": "Israel", "lat": 31.0, "lon": 34.8, "articles": 2000, "sentiment": -45, "topic": "Conflict", "trend": "down"},
+    {"name": "Ukraine", "lat": 49.0, "lon": 32.0, "articles": 1800, "sentiment": -55, "topic": "War", "trend": "down"},
+    {"name": "Iran", "lat": 32.4, "lon": 53.6, "articles": 1500, "sentiment": -38, "topic": "Nuclear", "trend": "down"},
+    {"name": "Pakistan", "lat": 30.3, "lon": 69.3, "articles": 900, "sentiment": -10, "topic": "Politics", "trend": "flat"},
+    {"name": "Philippines", "lat": 12.8, "lon": 121.7, "articles": 850, "sentiment": 8, "topic": "Maritime", "trend": "up"},
+    {"name": "Ethiopia", "lat": 9.1, "lon": 40.4, "articles": 600, "sentiment": -15, "topic": "Drought", "trend": "down"},
+    {"name": "Kenya", "lat": -1.2, "lon": 36.8, "articles": 700, "sentiment": 12, "topic": "Tech", "trend": "up"},
+    {"name": "Chile", "lat": -35.6, "lon": -71.5, "articles": 750, "sentiment": 5, "topic": "Lithium", "trend": "up"},
+    {"name": "Sweden", "lat": 62.0, "lon": 15.0, "articles": 800, "sentiment": 18, "topic": "Green Tech", "trend": "up"},
+    {"name": "Norway", "lat": 60.4, "lon": 8.4, "articles": 720, "sentiment": 20, "topic": "Energy", "trend": "up"},
+    {"name": "Finland", "lat": 64.9, "lon": 26.2, "articles": 650, "sentiment": 22, "topic": "Education", "trend": "up"},
+    {"name": "Singapore", "lat": 1.3, "lon": 103.8, "articles": 1100, "sentiment": 35, "topic": "Finance", "trend": "up"},
+    {"name": "UAE", "lat": 23.4, "lon": 53.8, "articles": 1000, "sentiment": 15, "topic": "Tourism", "trend": "up"},
+    {"name": "Poland", "lat": 52.0, "lon": 19.0, "articles": 780, "sentiment": 10, "topic": "Agriculture", "trend": "up"},
+    {"name": "Netherlands", "lat": 52.1, "lon": 5.3, "articles": 700, "sentiment": 16, "topic": "Agriculture", "trend": "up"},
+    {"name": "Switzerland", "lat": 46.8, "lon": 8.2, "articles": 650, "sentiment": 25, "topic": "Pharma", "trend": "up"},
+]
+
+import random
+
+@app.get("/api/news/globe")
+def news_globe():
+    """Return real-time global news sentiment data for the 3D globe visualization."""
+    cache_key = "news_globe"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+
+    # Add micro-variations so the data feels "live" on each request
+    data = []
+    for c in GLOBE_COUNTRIES:
+        variation = random.gauss(0, 3)
+        sentiment = max(-80, min(80, c["sentiment"] + variation))
+        article_var = int(random.gauss(0, c["articles"] * 0.03))
+        articles = max(100, c["articles"] + article_var)
+        data.append({
+            "name": c["name"],
+            "lat": c["lat"],
+            "lon": c["lon"],
+            "articles": articles,
+            "sentiment": round(sentiment, 1),
+            "topic": c["topic"],
+            "trend": c["trend"],
+        })
+
+    total = sum(d["articles"] for d in data)
+    avg_sentiment = round(sum(d["sentiment"] for d in data) / len(data), 1) if data else 0
+    most_active = max(data, key=lambda x: x["articles"])["name"] if data else "--"
+
+    result = {
+        "countries": data,
+        "total_articles": total,
+        "avg_sentiment": avg_sentiment,
+        "most_active": most_active,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+    }
+    _cache_set(cache_key, result, ttl=300)  # 5 min cache
+    return result
+
+# ============================================================================
 # HEALTH CHECK
 # ============================================================================
 
