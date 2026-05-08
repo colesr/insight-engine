@@ -6,8 +6,6 @@ colorTo: blue
 sdk: docker
 app_port: 7860
 pinned: false
-tags:
-- ml-intern
 ---
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
@@ -19,3 +17,5 @@ v32
 Fri May  8 16:22:41 UTC 2026
 v33
 Fri May  8 16:33:52 UTC 2026
+v34
+Fri May  8 16:41:48 UTC 2026
