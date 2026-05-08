@@ -9,6 +9,6 @@ tags:
 - ml-intern
 ---
 
-Global Insight Engine — deployed 2025-08-05
+Global Insight Engine with News Globe — deployed 2025-08-05
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
