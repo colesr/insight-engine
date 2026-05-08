@@ -6,6 +6,7 @@
 <title>Global Insight Engine</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>
@@ -48,6 +49,25 @@ body{background:#0a0e1a;overflow-x:hidden;color:#cbd5e1;font-family:'Inter',sans
 @keyframes orbit{0%{transform:translate(6px,6px);opacity:.4}25%{transform:translate(0,12px);opacity:.8}50%{transform:translate(-6px,6px);opacity:.4}75%{transform:translate(0,0);opacity:.8}100%{transform:translate(6px,6px);opacity:.4}}
 .animate-orbit{animation:orbit 4s linear infinite}
 @keyframes breathe{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.15);opacity:1}}
+/* GLOBE MODAL */
+.globe-overlay{position:fixed;inset:0;z-[90];background:rgba(5,8,18,0.92);backdrop-filter:blur(40px);display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity .8s ease}
+.globe-overlay.open{opacity:1;pointer-events:auto}
+.globe-close{position:absolute;top:16px;right:16px;z-index:100;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;background:rgba(15,23,42,0.7);border:1px solid rgba(34,211,238,0.15);color:#94a3b8;transition:all .3s}
+.globe-close:hover{background:rgba(34,211,238,0.1);border-color:rgba(34,211,238,0.4);color:#22d3ee}
+.globe-canvas{position:absolute;inset:0;width:100%;height:100%;cursor:grab}
+.globe-canvas:active{cursor:grabbing}
+.globe-tooltip{position:absolute;pointer-events:none;z-index:95;transform:translate(-50%,-120%);transition:opacity .3s}
+.globe-label{position:absolute;bottom:20px;left:20px;z-index:95;max-width:320px}
+.globe-legend{position:absolute;bottom:20px;right:20px;z-index:95;display:flex;flex-direction:column;gap:6px}
+.globe-legend-item{display:flex;align-items:center;gap:8px;font-size:11px;color:#94a3b8}
+.globe-legend-dot{width:10px;height:10px;border-radius:50%}
+.globe-top-bar{position:absolute;top:0;left:0;right:0;z-index:95;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+.globe-top-bar>div{pointer-events:auto}
+.globe-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99;transition:opacity .5s}
+.globe-loading.hidden{opacity:0;pointer-events:none}
+@keyframes globePulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}
+.globe-pulse-dot{width:8px;height:8px;border-radius:50%;background:#22d3ee;animation:globePulse 2s ease-in-out infinite}
+.globe-status{font-size:11px;color:#64748b;margin-top:8px}
 /* LIGHT MODE */
 html.light-mode body{background:#f8fafc;color:#334155}
 html.light-mode .glass{background:rgba(255,255,255,0.75);border-color:rgba(148,163,184,0.2)}
@@ -172,7 +192,7 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
 <header class="glass sticky top-0 z-50">
   <div class="max-w-[1920px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <div class="relative w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden group cursor-pointer" onclick="openChatbot('general')" data-tooltip="Ask the Insight Guide — get help with any chart or concept">
+      <div class="relative w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden group cursor-pointer" onclick="openNewsGlobe()" data-tooltip="Open the Global News Globe — real-time sentiment visualization across the planet">
         <!-- Animated gradient background -->
         <div class="absolute inset-0 bg-gradient-to-br from-brand-400 via-brand-500 to-brand-600 animate-gradient-shift" style="background-size:200% 200%"></div>
         <!-- Soft glow ring -->
@@ -590,6 +610,82 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
   </div>
 </div>
 
+<!-- NEWS GLOBE MODAL -->
+<div id="newsGlobeOverlay" class="globe-overlay">
+  <div class="globe-top-bar">
+    <div>
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center">
+          <i data-lucide="globe" class="w-4 h-4 text-white"></i>
+        </div>
+        <div>
+          <h2 class="text-sm font-semibold text-white">Global News Pulse</h2>
+          <p class="text-[0.6rem] text-slate-500">Live sentiment from public news & social media</p>
+        </div>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="glass-light rounded-lg px-3 py-1.5 text-xs text-slate-400 flex items-center gap-2">
+        <span class="globe-pulse-dot"></span>
+        <span id="globeStatusText">Loading data stream...</span>
+      </div>
+      <button class="globe-close" onclick="closeNewsGlobe()" title="Close globe">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="globe-loading" id="globeLoading">
+    <div class="w-12 h-12 rounded-full border-2 border-brand-400 border-t-transparent animate-spin"></div>
+    <div class="globe-status" id="globeLoadingText">Initializing 3D globe...</div>
+  </div>
+
+  <div id="globeContainer" class="globe-canvas"></div>
+
+  <!-- Tooltip -->
+  <div id="globeTooltip" class="globe-tooltip glass rounded-xl px-4 py-3 border border-slate-700/50 hidden" style="max-width:280px;">
+    <div class="flex items-center gap-2 mb-1.5">
+      <span id="globeTooltipFlag" class="text-sm"></span>
+      <span id="globeTooltipCountry" class="text-sm font-semibold text-white"></span>
+    </div>
+    <div class="flex items-center gap-3 mb-2">
+      <div id="globeTooltipBarWrap" class="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+        <div id="globeTooltipBar" class="h-full rounded-full transition-all" style="width:50%"></div>
+      </div>
+      <span id="globeTooltipScore" class="text-xs font-mono text-brand-300"></span>
+    </div>
+    <div class="space-y-1 text-[0.65rem] text-slate-400">
+      <div class="flex justify-between"><span>Volume</span><span id="globeTooltipVolume" class="text-slate-300"></span></div>
+      <div class="flex justify-between"><span>Sentiment</span><span id="globeTooltipSentiment" class=""></span></div>
+      <div class="flex justify-between"><span>Top topic</span><span id="globeTooltipTopic" class="text-brand-300"></span></div>
+      <div class="flex justify-between"><span>Trend</span><span id="globeTooltipTrend"></span></div>
+    </div>
+  </div>
+
+  <!-- Bottom legend -->
+  <div class="globe-legend glass rounded-xl p-3 border border-slate-700/50">
+    <div class="text-[0.65rem] text-slate-500 mb-2 uppercase tracking-wider font-medium">Sentiment Scale</div>
+    <div class="globe-legend-item"><span class="globe-legend-dot" style="background:#ef4444"></span>Critical (-80 to -40)</div>
+    <div class="globe-legend-item"><span class="globe-legend-dot" style="background:#f97316"></span>Negative (-40 to -10)</div>
+    <div class="globe-legend-item"><span class="globe-legend-dot" style="background:#eab308"></span>Neutral (-10 to +10)</div>
+    <div class="globe-legend-item"><span class="globe-legend-dot" style="background:#22c55e"></span>Positive (+10 to +40)</div>
+    <div class="globe-legend-item"><span class="globe-legend-dot" style="background:#06b6d4"></span>Excellent (+40 to +80)</div>
+    <div class="mt-2 pt-2 border-t border-slate-700/30 text-[0.6rem] text-slate-500">
+      Height = news volume · Color = sentiment · Click & drag to rotate
+    </div>
+  </div>
+
+  <div class="globe-label glass rounded-xl p-3 border border-slate-700/50">
+    <div class="text-[0.65rem] text-slate-500 mb-1 uppercase tracking-wider font-medium">Global Snapshot</div>
+    <div id="globeGlobalStats" class="space-y-1 text-[0.65rem] text-slate-400">
+      <div class="flex justify-between"><span>Countries tracked</span><span id="globeStatCountries" class="text-white">0</span></div>
+      <div class="flex justify-between"><span>News articles</span><span id="globeStatArticles" class="text-white">0</span></div>
+      <div class="flex justify-between"><span>Avg sentiment</span><span id="globeStatSentiment" class="text-white">0</span></div>
+      <div class="flex justify-between"><span>Most active</span><span id="globeStatActive" class="text-brand-300">--</span></div>
+    </div>
+  </div>
+</div>
+
 <!-- "Explain this" tooltip style floating buttons for charts -->
 <div id="explainTooltip" class="fixed z-[55] hidden" style="pointer-events:none">
   <div class="glass-light rounded-lg px-2.5 py-1.5 text-xs text-brand-300 flex items-center gap-1.5 shadow-lg shadow-brand-500/10" style="pointer-events:auto">
@@ -599,6 +695,6 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
 </div>
 
 <script src="/static/dataset_embed.js"></script>
-<script src="/static/app_v19.js"></script>
+<script src="/static/app_v20.js"></script>
 </body>
 </html>
