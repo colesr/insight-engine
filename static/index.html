@@ -177,7 +177,6 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
   <div class="border-t border-slate-700/30 p-4"><div class="flex gap-2"><input id="chatbotInput" type="text" placeholder="Ask me anything about the data..." class="flex-1 px-4 py-2.5 rounded-lg bg-slate-800/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500/50" onkeydown="if(event.key==='Enter')sendChatbotMessage()"><button onclick="sendChatbotMessage()" class="px-4 py-2.5 rounded-lg bg-brand-600/80 text-sm text-white hover:bg-brand-500 transition-colors flex items-center gap-2"><i data-lucide="send" class="w-4 h-4"></i></button></div></div>
 </div>
 
-<!-- GLOBE OVERLAY -->
 <div id="globeOverlay" class="globe-overlay">
   <div class="globe-top-bar"><div class="flex items-center gap-3"><div class="text-sm font-semibold text-white">Global Media Pulse</div><div class="text-[0.65rem] text-slate-400" id="globeArticleCount"></div></div><button onclick="closeNewsGlobe()" class="globe-close"><i data-lucide="x" class="w-4 h-4"></i></button></div>
   <div id="globeLoading" class="globe-loading"><div class="globe-pulse-dot"></div><div class="globe-status">Loading sentiment data...</div></div>
@@ -187,8 +186,8 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
   <div class="globe-legend"><div class="globe-legend-item"><div class="globe-legend-dot" style="background:#22d3ee"></div>Positive</div><div class="globe-legend-item"><div class="globe-legend-dot" style="background:#f43f5e"></div>Negative</div><div class="globe-legend-item"><div class="globe-legend-dot" style="background:#94a3b8"></div>Neutral</div></div>
 </div>
 
-<script src="/app_v35.js"></script>
-<script src="/globe_patch.js"></script>
+<script src="/static/app_v35.js"></script>
+<script src="/static/globe_patch.js"></script>
 <script>document.addEventListener('DOMContentLoaded',function(){if(window.init)init();lucide.createIcons();});</script>
 </body>
 </html>
