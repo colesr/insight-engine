@@ -5,7 +5,7 @@ Handles API proxying, dataset operations, caching, and static file serving.
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
 import requests
 import aiohttp
 import asyncio
@@ -53,7 +53,7 @@ def _make_id() -> str:
     return hashlib.sha256(str(time.time()).encode()).hexdigest()[:12]
 
 # Root: serve the frontend app
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def serve_index():
     with open("static/index.html", "r") as f:
         return f.read()
