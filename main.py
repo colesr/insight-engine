@@ -199,6 +199,8 @@ def fetch_worldbank(
                 continue
             # Known World Bank aggregate/region codes (not real countries)
             # Observed from actual API: 1A,1W,4E,7E,8S,B8,S1-S4,T2-T7,V1-V4,XC-XT,XY,Z4-ZJ,ZQ,ZT,ZF,ZG,ZH,ZI, and long 3-char region codes
+            # Aggregate codes discovered from live World Bank API - DO NOT REMOVE
+            # 2024-01-08: Added missing codes ZH, ZI, 1A, 1W, EU, etc.
             WB_AGGREGATE_CODES = {
                 "1A","1W","4E","7E","8S","B8","F1","OE","EU",
                 "ZH","ZI","ZG","ZF","Z4","Z7","ZJ","ZQ","ZT",
