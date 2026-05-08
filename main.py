@@ -528,7 +528,8 @@ def fetch_worldbank(
                 records[country] = {"country": country}
             # Keep the latest year for each indicator
             current = records[country].get(ind_id)
-            if current is None or (year and year > current.get("_year", "0")):
+            current_year = records[country].get("_year_" + ind_id, "0")
+            if current is None or (year and year > current_year):
                 records[country][ind_id] = round(float(value), 3)
                 records[country]["_year_" + ind_id] = year
         time.sleep(0.15)  # Rate limit
