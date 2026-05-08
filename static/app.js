@@ -1,5 +1,5 @@
 // === GLOBAL INSIGHT ENGINE v6 - DOCKER + FASTAPI ===
-// Updated: 2024-01-08
+// Updated: 2024-01-08-v5
 const CONFIG = { maxCountries: 200, correlationThreshold: 0.3, outlierZScore: 2 };
 let dataset = [], variableDefs = [], categories = [], selectedVar = null;
 let corrFilter = 'all', activeCategory = null, activeTab = 'explorer', peerMode = 'global';
@@ -62,7 +62,7 @@ async function loadDefaultDataset() {
         unit: '', category: 'General', desc: 'World Bank indicator', icon: 'bar-chart-3', higherIsBetter: null
       }));
       DATASET_PACKS.length = 0;
-      DATASET_PACKS.push({ name: 'World Bank Live', source: 'backend', description: 'Live World Bank indicators', variableCount: VARIABLE_DEFS.length, countryCount: DATASET.length, lastUpdated: '2024', requiresKey: false, dataset: DATASET, variables: VARIABLE_DEFS, loaded: true, file: 'backend' });
+      DATASET_PACKS.push({ name: 'World Bank Live', source: 'backend', description: 'Live World Bank indicators', variableCount: VARIABLE_DEFS.length, lastUpdated: '2024', requiresKey: false, dataset: DATASET, variables: VARIABLE_DEFS, loaded: true, file: 'backend' });
       CURRENT_DATASET = DATASET_PACKS[0];
       currentDatasetId = 'builtin:wb_live';
       showStatus('Live data loaded', 50);
@@ -80,7 +80,7 @@ function initDatasetSystem() {
       const k = Object.keys(DATASET[0]).filter(x => !['country', 'code', 'region', 'income'].includes(x));
       window.VARIABLE_DEFS = k.map(x => ({ key: x, name: x.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), unit: '', category: 'General', desc: 'Indicator', icon: 'bar-chart-3', higherIsBetter: null }));
     }
-    DATASET_PACKS.push({ name: 'World Bank Core', source: 'dataset_embed.js', description: 'Economic, health, and social indicators', variableCount: VARIABLE_DEFS.length, countryCount: DATASET.length, lastUpdated: '2024', requiresKey: false, dataset: DATASET, variables: VARIABLE_DEFS, loaded: true, file: 'dataset_embed.js' });
+    DATASET_PACKS.push({ name: 'World Bank Core', source: 'dataset_embed.js', description: 'Economic, health, and social indicators', variableCount: VARIABLE_DEFS.length, lastUpdated: '2024', requiresKey: false, dataset: DATASET, variables: VARIABLE_DEFS, loaded: true, file: 'dataset_embed.js' });
     CURRENT_DATASET = DATASET_PACKS[0];
   }
 }
@@ -100,6 +100,8 @@ function switchToDataset(packName) {
   renderCategoryGrid(); renderVariableList(); initDecisionFramework();
   initBenchmark(); initSimulatorUI(); initCompareUI();
   lucide.createIcons(); CURRENT_DATASET = pack;
+  const dp2 = document.getElementById('dataPointCount');
+  if (dp2) dp2.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span><span>${variableDefs.length} variables</span>`;
   return true;
 }
 
@@ -181,8 +183,8 @@ async function fetchWorldBankData() {
     document.getElementById('emptyState').classList.remove('hidden');
     document.getElementById('resultsArea').classList.add('hidden');
     const vs = document.getElementById('varSearch'); if (vs) vs.value = '';
-    CURRENT_DATASET = { name: 'World Bank Custom', source: 'backend', description: `${selected.length} indicators fetched`, variableCount: vars.length, countryCount: result.data.length };
-    showStatus(`Loaded ${result.data.length} countries, ${vars.length} vars`, 100);
+    CURRENT_DATASET = { name: 'World Bank Custom', source: 'backend', description: `${selected.length} indicators fetched`, variableCount: vars.length };
+    showStatus(`Loaded ${vars.length} variables`, 100);
     renderCategoryGrid(); renderVariableList(); initDecisionFramework();
     initBenchmark(); initSimulatorUI(); initCompareUI();
     lucide.createIcons();
@@ -202,8 +204,8 @@ async function fetchClimateData() {
     categories = [...new Set(variableDefs.map(v => v.category))];
     weights = {}; variableDefs.forEach(v => weights[v.key] = 1);
     selectedVar = null;
-    CURRENT_DATASET = { name: 'Climate Data', source: 'Open-Meteo', description: 'Capital city climate averages', variableCount: vars.length, countryCount: result.data.length };
-    showStatus(`Loaded climate for ${result.data.length} capitals`, 100);
+    CURRENT_DATASET = { name: 'Climate Data', source: 'Open-Meteo', description: 'Capital city climate averages', variableCount: vars.length };
+    showStatus(`Loaded ${vars.length} variables`, 100);
     renderCategoryGrid(); renderVariableList(); initDecisionFramework();
     initBenchmark(); initSimulatorUI(); initCompareUI();
     lucide.createIcons();
@@ -381,7 +383,7 @@ function generateNarrative(v, corrs) {
   const cross = corrs.find(c => Math.abs(c.r) >= 0.5 && c.category !== v.category);
   const topCountry = [...dataset].sort((a, b) => (b[v.key] || 0) - (a[v.key] || 0))[0];
   const bottomCountry = [...dataset].sort((a, b) => (a[v.key] || 0) - (b[v.key] || 0))[0];
-  let narrative = `${v.name} (${v.category}) varies widely across the ${dataset.length} countries studied. `;
+  let narrative = `${v.name} (${v.category}) varies widely. `;
   if (topCountry && topCountry[v.key] != null && bottomCountry && bottomCountry[v.key] != null) {
     narrative += `${topCountry.country} leads with ${topCountry[v.key].toFixed(1)} ${v.unit}, while ${bottomCountry.country} records ${bottomCountry[v.key].toFixed(1)} ${v.unit}. `;
   }
