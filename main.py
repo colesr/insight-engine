@@ -52,16 +52,25 @@ _loaded_datasets: Dict[str, Dict[str, Any]] = {}
 def _make_id() -> str:
     return hashlib.sha256(str(time.time()).encode()).hexdigest()[:12]
 
-# API routes must be defined BEFORE static file mount
+# ============================================================================
+# API ROUTES (must be defined BEFORE the catch-all root route)
+# ============================================================================
 
 # Root health endpoint
 @app.get("/api/health")
 def health():
     return {"status": "ok", "datasets_loaded": len(_loaded_datasets), "cache_entries": len(_cache)}
 
-# Static files — mount at root with html=True for SPA behavior
-# API routes defined above take priority, so /api/* still works
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+# Static files — served at /static/ for JS/CSS
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# SPA catch-all: serve index.html for all non-API paths
+# HF Spaces proxy may send POST to / for the initial page load
+from fastapi import Request
+@app.api_route("/", methods=["GET", "POST"], response_class=HTMLResponse)
+def serve_index(request: Request):
+    with open("static/index.html", "r") as f:
+        return f.read()
 
 # ============================================================================
 # WORLD BANK API
