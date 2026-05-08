@@ -198,9 +198,20 @@ def fetch_worldbank(
             if len(data) < 2:
                 continue
             # Known World Bank aggregate/region codes (not real countries)
-            # Known World Bank aggregate codes (not real countries)
-            WB_AGGREGATE_CODES = {"AFE","AFW","ARB","CSS","CEB","EAP","EAR","EAS","ECA","ECS","EUU","FCS","HPC","IBD","IBT","IDA","IDB","IDX","INX","LAC","LCN","LDC","LIC","LMC","LMY","LTE","MEA","MIC","MNA","NAC","OED","OSS","PSS","PRE","PST","SAS","SSA","SSF","SST","TEA","TEC","TLA","TMN","TSA","TSS","WLD"}
-            # Common aggregate name patterns (not exhaustive, but catches most)
+            # Observed from actual API: 1A,1W,4E,7E,8S,B8,S1-S4,T2-T7,V1-V4,XC-XT,XY,Z4-ZJ,ZQ,ZT,ZF,ZG,ZH,ZI, and long 3-char region codes
+            WB_AGGREGATE_CODES = {
+                "1A","1W","4E","7E","8S","B8","F1","OE","EU",
+                "ZH","ZI","ZG","ZF","Z4","Z7","ZJ","ZQ","ZT",
+                "S1","S2","S3","S4","T2","T3","T4","T5","T6","T7",
+                "V1","V2","V3","V4",
+                "XC","XD","XE","XF","XG","XH","XI","XJ","XL","XM","XN","XO","XP","XQ","XT","XU","XY",
+                "AFE","AFW","ARB","CSS","CEB","EAP","EAR","EAS","ECA","ECS",
+                "EUU","FCS","HPC","IBD","IBT","IDA","IDB","IDX","INX",
+                "LAC","LCN","LDC","LIC","LMC","LMY","LTE","MEA","MIC","MNA",
+                "NAC","OED","OSS","PSS","PRE","PST","SAS","SSA","SSF","SST",
+                "TEA","TEC","TLA","TMN","TSA","TSS","WLD"
+            }
+            # Common aggregate name patterns
             AGGREGATE_NAME_PATTERNS = ["(excluding", "income levels)", "all income", "small states", "demographic dividend", "World", "Arab World", "European Union"]
             for item in data[1]:
                 country_info = item.get("country", {})
@@ -211,12 +222,11 @@ def fetch_worldbank(
                 year = item.get("date")
                 if not country or value is None:
                     continue
-                # Filter: skip if country ID is a known WB aggregate code
+                # Skip known aggregate codes AND all single/double-letter codes (they're all aggregates)
                 if country_id in WB_AGGREGATE_CODES:
                     continue
-                # Secondary filter: skip if name contains aggregate patterns
-                is_agg_name = any(p in country_raw for p in AGGREGATE_NAME_PATTERNS)
-                if is_agg_name:
+                # Also skip if name contains aggregate patterns
+                if any(p in country_raw for p in AGGREGATE_NAME_PATTERNS):
                     continue
                 if country not in records:
                     records[country] = {"country": country}
