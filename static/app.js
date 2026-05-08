@@ -1,5 +1,5 @@
 // === GLOBAL INSIGHT ENGINE v6 - DOCKER + FASTAPI ===
-// Updated: 2024-01-08-v5
+// Updated: 2024-01-08-v9
 const CONFIG = { maxCountries: 200, correlationThreshold: 0.3, outlierZScore: 2 };
 let dataset = [], variableDefs = [], categories = [], selectedVar = null;
 let corrFilter = 'all', activeCategory = null, activeTab = 'explorer', peerMode = 'global';
@@ -51,11 +51,25 @@ const DATASET_PACKS = [];
 async function loadDefaultDataset() {
   showStatus('Loading dataset...', 10);
   try {
+    // Try to load a curated preset from the backend
+    const result = await api('/api/datasets/builtin/hdi_2022');
+    if (result && result.data && result.data.length > 0) {
+      DATASET.length = 0; result.data.forEach(d => DATASET.push(d));
+      VARIABLE_DEFS.length = 0; result.indicators.forEach(v => VARIABLE_DEFS.push(v));
+      DATASET_PACKS.length = 0;
+      DATASET_PACKS.push({ name: result.name, source: result.source, description: result.description, variableCount: VARIABLE_DEFS.length, lastUpdated: result.last_updated, requiresKey: false, dataset: DATASET, variables: VARIABLE_DEFS, loaded: true, file: 'builtin:hdi_2022' });
+      CURRENT_DATASET = DATASET_PACKS[0];
+      currentDatasetId = 'builtin:hdi_2022';
+      showStatus('Loaded Human Development Index', 50);
+      return;
+    }
+  } catch (e) { console.log('Backend builtin unavailable, trying WB live', e); }
+  
+  try {
     const defaults = 'gdp_per_capita,life_expectancy,population,electricity_access,internet_users,co2_per_capita,renewable_energy,gini,unemployment,health_exp_per_capita,infant_mortality,sanitation';
     const result = await api(`/api/worldbank/fetch?indicators=${defaults}&countries=all&date_range=2020:2023&latest_only=true`);
     if (result.data && result.data.length > 0) {
       DATASET.length = 0; result.data.forEach(d => DATASET.push(d));
-      // Always build VARIABLE_DEFS from fetched data (ignore embedded definitions)
       const keys = Object.keys(DATASET[0]).filter(x => x !== 'country');
       window.VARIABLE_DEFS = keys.map(x => ({
         key: x, name: x.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
@@ -105,63 +119,224 @@ function switchToDataset(packName) {
   return true;
 }
 
+// === DATASET LIBRARY CATALOG ===
+const DATASET_CATALOG = {
+  builtin: [
+    { id: 'happiness_2023', name: 'World Happiness Report 2023', category: 'Wellbeing', source: 'UN SDSN', description: 'Happiness, social support, freedom, generosity, corruption perceptions', icon: 'heart', color: 'rose' },
+    { id: 'hdi_2022', name: 'Human Development Index 2021/2022', category: 'Development', source: 'UNDP', description: 'HDI, life expectancy, schooling, GNI per capita', icon: 'users', color: 'blue' },
+    { id: 'epi_2022', name: 'Environmental Performance Index 2022', category: 'Environment', source: 'Yale/Columbia', description: 'Ecosystem vitality, environmental health, air quality, biodiversity', icon: 'leaf', color: 'green' },
+    { id: 'peace_2023', name: 'Global Peace Index 2023', category: 'Security', source: 'IEP', description: 'Peace, safety, militarization, conflict, terrorism', icon: 'shield', color: 'indigo' },
+    { id: 'press_freedom_2023', name: 'Press Freedom Index 2023', category: 'Governance', source: 'RSF', description: 'Press freedom, safety of journalists, media independence', icon: 'newspaper', color: 'amber' },
+    { id: 'corruption_perceptions_2023', name: 'Corruption Perceptions Index 2023', category: 'Governance', source: 'Transparency Int.', description: 'Perceived public sector corruption, ranking', icon: 'scale', color: 'purple' },
+    { id: 'labor_rights_2023', name: 'Global Rights Index 2023', category: 'Labor', source: 'ITUC', description: 'Workers rights, collective bargaining, trade unions', icon: 'briefcase', color: 'orange' },
+    { id: 'cybersecurity_2023', name: 'Global Cybersecurity Index 2023', category: 'Technology', source: 'ITU', description: 'Cybersecurity readiness, legal, technical, cooperation', icon: 'lock', color: 'cyan' },
+    { id: 'food_security_2023', name: 'Global Food Security Index 2022', category: 'Food', source: 'Economist Impact', description: 'Food affordability, availability, quality, sustainability', icon: 'utensils', color: 'emerald' },
+    { id: 'innovation_2023', name: 'Global Innovation Index 2023', category: 'Innovation', source: 'WIPO', description: 'Innovation capacity, outputs, institutions, infrastructure', icon: 'lightbulb', color: 'yellow' },
+    { id: 'digital_competitiveness_2023', name: 'IMD Digital Competitiveness 2023', category: 'Digital', source: 'IMD', description: 'Knowledge, technology, future readiness of digital economies', icon: 'cpu', color: 'sky' },
+    { id: 'gini_ref_2022', name: 'Income Inequality Reference', category: 'Social', source: 'World Bank', description: 'Gini index, income shares, Palma ratio', icon: 'bar-chart-2', color: 'pink' },
+  ],
+  wb_presets: [
+    { id: 'wb:economy', name: 'Economy', description: 'GDP, growth, debt, trade, FDI, industry', indicators: 25, icon: 'trending-up', color: 'emerald' },
+    { id: 'wb:health', name: 'Health', description: 'Life expectancy, mortality, health spending, disease', indicators: 25, icon: 'heart-pulse', color: 'rose' },
+    { id: 'wb:education', name: 'Education', description: 'Enrollment, literacy, years of schooling, spending', indicators: 20, icon: 'graduation-cap', color: 'blue' },
+    { id: 'wb:environment', name: 'Environment', description: 'CO2, renewables, forest, water, emissions, biodiversity', indicators: 25, icon: 'trees', color: 'green' },
+    { id: 'wb:social', name: 'Social & Demographics', description: 'Population, gender, inequality, migration', indicators: 20, icon: 'users', color: 'purple' },
+    { id: 'wb:governance', name: 'Governance & Business', description: 'Business climate, taxes, legal, women participation', indicators: 20, icon: 'landmark', color: 'amber' },
+    { id: 'wb:digital', name: 'Digital & Infrastructure', description: 'Internet, broadband, ICT, e-government', indicators: 15, icon: 'wifi', color: 'cyan' },
+    { id: 'wb:tourism', name: 'Tourism', description: 'International arrivals, tourism receipts', indicators: 5, icon: 'plane', color: 'sky' },
+    { id: 'wb:full', name: 'Full World Bank (120+)', description: 'Comprehensive set of all available indicators', indicators: 120, icon: 'database', color: 'slate' },
+  ]
+};
+
 // === DATASET BROWSER ===
 async function showDatasetBrowser() {
   let existing = document.getElementById('datasetBrowserModal'); if (existing) existing.remove();
   const modal = document.createElement('div');
-  modal.id = 'datasetBrowserModal'; modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4';
+  modal.id = 'datasetBrowserModal'; modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4';
   modal.onclick = e => { if (e.target === modal) modal.remove(); };
-  let builtinCards = DATASET_PACKS.map(p => `
-    <div class="glass-light rounded-xl p-5 cursor-pointer transition-all hover:bg-brand-500/10 hover:border-brand-500/30 border border-transparent ${CURRENT_DATASET && CURRENT_DATASET.name === p.name ? 'border-brand-500/40 bg-brand-500/5' : ''}" onclick="selectDatasetPack('${p.name}');document.getElementById('datasetBrowserModal').remove()">
-      <div class="flex items-center justify-between mb-3"><div class="flex items-center gap-2"><div class="w-8 h-8 rounded-lg bg-brand-500/15 flex items-center justify-center"><i data-lucide="database" class="w-4 h-4 text-brand-400"></i></div><span class="text-sm font-semibold text-white">${p.name}</span></div>${CURRENT_DATASET && CURRENT_DATASET.name === p.name ? '<span class="text-[0.65rem] px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300">Active</span>' : ''}</div>
-      <div class="text-xs text-slate-400 mb-3">${p.description}</div>
-      <div class="flex items-center gap-3 text-[0.65rem] text-slate-500"><span>${p.variableCount} variables</span></div>
+
+  // Build tab content as strings first
+  const builtinCards = DATASET_CATALOG.builtin.map(ds => {
+    const isActive = CURRENT_DATASET && CURRENT_DATASET.file === ds.id;
+    return `
+    <div class="glass-light rounded-xl p-4 cursor-pointer transition-all hover:bg-brand-500/10 hover:border-brand-500/30 border border-transparent ${isActive ? 'border-brand-500/40 bg-brand-500/5' : ''}" onclick="loadBuiltinDataset('${ds.id}');document.getElementById('datasetBrowserModal').remove()">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-${ds.color}-500/15 flex items-center justify-center"><i data-lucide="${ds.icon}" class="w-4 h-4 text-${ds.color}-400"></i></div>
+          <div><div class="text-sm font-semibold text-white">${ds.name}</div><div class="text-[0.65rem] text-slate-400">${ds.source} · ${ds.category}</div></div>
+        </div>
+        ${isActive ? '<span class="text-[0.65rem] px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300">Active</span>' : ''}
+      </div>
+      <div class="text-xs text-slate-400">${ds.description}</div>
+    </div>`;
+  }).join('');
+
+  const wbCards = DATASET_CATALOG.wb_presets.map(p => `
+    <div class="glass-light rounded-xl p-4 cursor-pointer transition-all hover:bg-brand-500/10 hover:border-brand-500/30 border border-transparent" onclick="fetchWorldBankPreset('${p.id}');document.getElementById('datasetBrowserModal').remove()">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="w-8 h-8 rounded-lg bg-${p.color}-500/15 flex items-center justify-center"><i data-lucide="${p.icon}" class="w-4 h-4 text-${p.color}-400"></i></div>
+        <div><div class="text-sm font-semibold text-white">${p.name}</div><div class="text-[0.65rem] text-slate-400">${p.indicators} variables</div></div>
+      </div>
+      <div class="text-xs text-slate-400">${p.description}</div>
     </div>
   `).join('');
-  let apiSection = '';
-  try {
-    const wb = await api('/api/worldbank/indicators');
-    if (wb.indicators) {
-      const indList = wb.indicators.map(i => `<option value="${i.id}">${i.name} (${i.wb_code})</option>`).join('');
-      apiSection = `
-        <div class="mt-6 p-4 rounded-xl bg-slate-800/30 border border-slate-700/30">
-          <div class="text-xs font-semibold text-white mb-2">Fetch World Bank Data</div>
-          <p class="text-[0.65rem] text-slate-400 mb-3">Select indicators to fetch live data.</p>
-          <select id="wbIndicatorSelect" multiple class="w-full h-32 px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700/50 text-xs text-white mb-2 overflow-y-auto">${indList}</select>
-          <button onclick="fetchWorldBankData()" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600/80 text-xs text-white hover:bg-brand-500 transition-colors">
-            <i data-lucide="download" class="w-3.5 h-3.5"></i>Fetch & Load
-          </button>
-        </div>
-        <div class="mt-4 p-4 rounded-xl bg-slate-800/30 border border-slate-700/30">
-          <div class="text-xs font-semibold text-white mb-2">Fetch Climate Data</div>
-          <button onclick="fetchClimateData()" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600/80 text-xs text-white hover:bg-brand-500 transition-colors">
-            <i data-lucide="cloud" class="w-3.5 h-3.5"></i>Fetch Capital City Climate
-          </button>
-        </div>
-      `;
-    }
-  } catch (e) { apiSection = `<div class="mt-4 p-3 rounded-lg bg-red-500/10 text-red-300 text-xs">Backend API not available. Using embedded data only.</div>`; }
+
+  const categoryColors = {
+    'Economy': 'emerald', 'Health': 'rose', 'Education': 'blue', 'Environment': 'green',
+    'Social': 'purple', 'Governance': 'amber', 'Digital': 'cyan', 'Tourism': 'sky',
+    'Security': 'indigo', 'Wellbeing': 'pink', 'Innovation': 'yellow', 'Labor': 'orange',
+    'Food': 'emerald', 'Technology': 'cyan', 'Development': 'blue', 'General': 'slate',
+    'Climate': 'teal', 'Infrastructure': 'sky'
+  };
+
   modal.innerHTML = `
-    <div class="glass rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+    <div class="glass rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
       <div class="flex items-center justify-between p-5 border-b border-slate-700/50">
-        <h3 class="text-lg font-bold text-white">Data Sources</h3>
+        <h3 class="text-lg font-bold text-white flex items-center gap-2"><i data-lucide="library" class="w-5 h-5 text-brand-400"></i>Data Library</h3>
         <button onclick="document.getElementById('datasetBrowserModal').remove()" class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-700/50"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
       </div>
+      <div class="flex border-b border-slate-700/50">
+        <button id="libTab-curated" onclick="switchLibTab('curated')" class="lib-tab px-4 py-3 text-xs font-medium text-brand-300 border-b-2 border-brand-500 transition-colors">Curated Datasets</button>
+        <button id="libTab-live" onclick="switchLibTab('live')" class="lib-tab px-4 py-3 text-xs font-medium text-slate-400 border-b-2 border-transparent hover:text-white transition-colors">Live APIs</button>
+        <button id="libTab-upload" onclick="switchLibTab('upload')" class="lib-tab px-4 py-3 text-xs font-medium text-slate-400 border-b-2 border-transparent hover:text-white transition-colors">Upload</button>
+      </div>
       <div class="overflow-auto p-5 flex-1">
-        <div class="text-[0.65rem] text-slate-500 mb-2 uppercase tracking-wider font-medium">Built-in Datasets</div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${builtinCards}</div>
-        ${apiSection}
-        <div class="mt-6 p-4 rounded-xl bg-slate-800/30 border border-slate-700/30">
-          <div class="text-xs font-semibold text-white mb-2">Upload Custom Data</div>
-          <p class="text-[0.65rem] text-slate-400 mb-3">Import CSV or JSON.</p>
-          <label class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600/80 text-xs text-white hover:bg-brand-500 cursor-pointer">
-            <i data-lucide="file-up" class="w-3.5 h-3.5"></i>Choose File
-            <input type="file" accept=".json,.csv" class="hidden" onchange="handleFileUpload(event);document.getElementById('datasetBrowserModal').remove()">
-          </label>
+        <div id="libPane-curated">
+          <div class="mb-4">
+            <div class="text-[0.65rem] text-slate-500 mb-2 uppercase tracking-wider font-medium">Built-in Reference Datasets</div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${builtinCards}</div>
+          </div>
+        </div>
+        <div id="libPane-live" class="hidden">
+          <div class="mb-4">
+            <div class="text-[0.65rem] text-slate-500 mb-2 uppercase tracking-wider font-medium">World Bank Presets</div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${wbCards}</div>
+          </div>
+          <div class="mb-4">
+            <div class="text-[0.65rem] text-slate-500 mb-2 uppercase tracking-wider font-medium">Other Live Sources</div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="glass-light rounded-xl p-4 cursor-pointer transition-all hover:bg-brand-500/10 hover:border-brand-500/30 border border-transparent" onclick="fetchClimateData();document.getElementById('datasetBrowserModal').remove()">
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="w-8 h-8 rounded-lg bg-teal-500/15 flex items-center justify-center"><i data-lucide="cloud" class="w-4 h-4 text-teal-400"></i></div>
+                  <div><div class="text-sm font-semibold text-white">Capital City Climate</div><div class="text-[0.65rem] text-slate-400">Open-Meteo · 195+ cities</div></div>
+                </div>
+                <div class="text-xs text-slate-400">Temperature and precipitation averages for capital cities worldwide</div>
+              </div>
+              <div class="glass-light rounded-xl p-4 cursor-pointer transition-all hover:bg-brand-500/10 hover:border-brand-500/30 border border-transparent" onclick="fetchCustomWBIndicators();document.getElementById('datasetBrowserModal').remove()">
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="w-8 h-8 rounded-lg bg-slate-500/15 flex items-center justify-center"><i data-lucide="list-filter" class="w-4 h-4 text-slate-400"></i></div>
+                  <div><div class="text-sm font-semibold text-white">Custom World Bank</div><div class="text-[0.65rem] text-slate-400">120+ indicators</div></div>
+                </div>
+                <div class="text-xs text-slate-400">Select individual indicators from the full World Bank catalog</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="libPane-upload" class="hidden">
+          <div class="glass-light rounded-xl p-6 text-center">
+            <div class="w-12 h-12 rounded-full bg-brand-500/15 flex items-center justify-center mx-auto mb-3"><i data-lucide="upload-cloud" class="w-6 h-6 text-brand-400"></i></div>
+            <div class="text-sm font-semibold text-white mb-2">Upload Custom Dataset</div>
+            <p class="text-xs text-slate-400 mb-4 max-w-sm mx-auto">Import a CSV or JSON file with country rows and indicator columns. The first column should be "country".</p>
+            <label class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-600/80 text-sm text-white hover:bg-brand-500 cursor-pointer transition-colors">
+              <i data-lucide="file-up" class="w-4 h-4"></i>Choose File
+              <input type="file" accept=".json,.csv" class="hidden" onchange="handleFileUpload(event);document.getElementById('datasetBrowserModal').remove()">
+            </label>
+          </div>
         </div>
       </div>
     </div>`;
   document.body.appendChild(modal); lucide.createIcons();
+}
+
+function switchLibTab(tab) {
+  document.querySelectorAll('.lib-tab').forEach(t => { t.classList.remove('text-brand-300', 'border-brand-500'); t.classList.add('text-slate-400', 'border-transparent'); });
+  document.getElementById('libTab-' + tab).classList.remove('text-slate-400', 'border-transparent');
+  document.getElementById('libTab-' + tab).classList.add('text-brand-300', 'border-brand-500');
+  ['curated','live','upload'].forEach(t => document.getElementById('libPane-' + t).classList.add('hidden'));
+  document.getElementById('libPane-' + tab).classList.remove('hidden');
+}
+
+async function loadBuiltinDataset(datasetId) {
+  showStatus('Loading ' + datasetId + '...', 20);
+  try {
+    const result = await api('/api/datasets/builtin/' + datasetId);
+    if (!result || !result.data || !result.data.length) { showStatus('No data returned', 100); return; }
+    DATASET.length = 0; result.data.forEach(d => DATASET.push(d));
+    VARIABLE_DEFS.length = 0; result.indicators.forEach(v => VARIABLE_DEFS.push(v));
+    dataset = DATASET; variableDefs = VARIABLE_DEFS;
+    categories = [...new Set(variableDefs.map(v => v.category))];
+    weights = {}; variableDefs.forEach(v => weights[v.key] = 1);
+    selectedVar = null; corrFilter = 'all'; activeCategory = null;
+    document.getElementById('emptyState').classList.remove('hidden');
+    document.getElementById('resultsArea').classList.add('hidden');
+    const vs = document.getElementById('varSearch'); if (vs) vs.value = '';
+    showStatus('Loaded ' + result.name, 100);
+    renderCategoryGrid(); renderVariableList(); initDecisionFramework();
+    initBenchmark(); initSimulatorUI(); initCompareUI();
+    lucide.createIcons();
+    CURRENT_DATASET = { name: result.name, source: result.source, description: result.description, variableCount: variableDefs.length, lastUpdated: result.last_updated, requiresKey: false, dataset: DATASET, variables: VARIABLE_DEFS, loaded: true, file: datasetId };
+    const dp2 = document.getElementById('dataPointCount');
+    if (dp2) dp2.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span><span>${variableDefs.length} variables</span>`;
+  } catch (e) { showStatus('Failed: ' + e.message, 100); console.error(e); }
+}
+
+async function fetchWorldBankPreset(presetId) {
+  const preset = DATASET_CATALOG.wb_presets.find(p => p.id === presetId);
+  if (!preset) { showStatus('Preset not found', 100); return; }
+  showStatus('Fetching ' + preset.name + '...', 20);
+  try {
+    const sources = await api('/api/sources/list');
+    const p = sources.worldbank_presets.find(x => x.id === presetId);
+    if (!p) { showStatus('Preset not found on server', 100); return; }
+    const result = await api(`/api/worldbank/fetch?indicators=${p.indicators}&countries=all&date_range=2020:2023`);
+    if (!result.data || !result.data.length) { showStatus('No data returned', 100); return; }
+    const keys = Object.keys(result.data[0]).filter(x => x !== 'country');
+    const vars = keys.map(x => ({ key: x, name: x.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), unit: '', category: preset.name, desc: 'World Bank indicator', icon: 'bar-chart-3', higherIsBetter: null }));
+    DATASET.length = 0; result.data.forEach(d => DATASET.push(d));
+    VARIABLE_DEFS.length = 0; vars.forEach(v => VARIABLE_DEFS.push(v));
+    dataset = DATASET; variableDefs = VARIABLE_DEFS;
+    categories = [...new Set(variableDefs.map(v => v.category))];
+    weights = {}; variableDefs.forEach(v => weights[v.key] = 1);
+    selectedVar = null; corrFilter = 'all'; activeCategory = null;
+    document.getElementById('emptyState').classList.remove('hidden');
+    document.getElementById('resultsArea').classList.add('hidden');
+    showStatus(`Loaded ${preset.name} (${vars.length} variables)`, 100);
+    renderCategoryGrid(); renderVariableList(); initDecisionFramework();
+    initBenchmark(); initSimulatorUI(); initCompareUI();
+    lucide.createIcons();
+    CURRENT_DATASET = { name: 'WB: ' + preset.name, source: 'World Bank API', description: preset.description, variableCount: vars.length, lastUpdated: '2024', requiresKey: false, dataset: DATASET, variables: VARIABLE_DEFS, loaded: true, file: presetId };
+    const dp2 = document.getElementById('dataPointCount');
+    if (dp2) dp2.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span><span>${variableDefs.length} variables</span>`;
+  } catch (e) { showStatus('Fetch failed: ' + e.message, 100); }
+}
+
+async function fetchCustomWBIndicators() {
+  showStatus('Loading indicator catalog...', 10);
+  try {
+    const wb = await api('/api/worldbank/indicators');
+    if (!wb.indicators) { showStatus('Catalog unavailable', 100); return; }
+    const indList = wb.indicators.map(i => `<option value="${i.id}">${i.name} [${i.wb_code}] (${i.category})</option>`).join('');
+    let modal = document.createElement('div');
+    modal.id = 'customWBModal'; modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4';
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
+    modal.innerHTML = `
+      <div class="glass rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+        <div class="flex items-center justify-between p-5 border-b border-slate-700/50">
+          <h3 class="text-lg font-bold text-white">Custom World Bank Indicators</h3>
+          <button onclick="document.getElementById('customWBModal').remove()" class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-700/50"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
+        </div>
+        <div class="p-5 flex-1 overflow-auto">
+          <p class="text-xs text-slate-400 mb-3">Hold Ctrl/Cmd to select multiple. Selected: <span id="wbSelCount" class="text-brand-300 font-semibold">0</span></p>
+          <select id="wbIndicatorSelect" multiple class="w-full h-64 px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700/50 text-xs text-white mb-3 overflow-y-auto">${indList}</select>
+          <button onclick="fetchWorldBankData()" class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand-600/80 text-sm text-white hover:bg-brand-500 transition-colors">
+            <i data-lucide="download" class="w-4 h-4"></i>Fetch & Load
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal); lucide.createIcons();
+    const sel = document.getElementById('wbIndicatorSelect');
+    if (sel) sel.addEventListener('change', () => { const cnt = document.getElementById('wbSelCount'); if (cnt) cnt.textContent = sel.selectedOptions.length; });
+  } catch (e) { showStatus('Catalog load failed', 100); }
 }
 
 async function fetchWorldBankData() {
