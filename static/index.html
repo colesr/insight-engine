@@ -192,17 +192,8 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
 <header class="glass sticky top-0 z-50">
   <div class="max-w-[1920px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <div class="relative w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden group cursor-pointer" onclick="openNewsGlobe()" data-tooltip="Open Global Media Insights">
-        <!-- Animated gradient background -->
-        <div class="absolute inset-0 bg-gradient-to-br from-brand-400 via-brand-500 to-brand-600 animate-gradient-shift" style="background-size:200% 200%"></div>
-        <!-- Soft glow ring -->
-        <div class="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" style="box-shadow:0 0 20px rgba(6,182,212,0.4)"></div>
-        <!-- Floating inner ring -->
-        <div class="absolute inset-0.5 rounded-md border border-white/10"></div>
-        <!-- Compass icon with subtle float -->
-        <i data-lucide="compass" class="relative w-5 h-5 text-white drop-shadow-sm animate-logo-float"></i>
-        <!-- Orbiting dot -->
-        <div class="absolute w-1 h-1 rounded-full bg-white/60 animate-orbit"></div>
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-400 via-brand-500 to-brand-600 flex items-center justify-center">
+        <i data-lucide="compass" class="w-5 h-5 text-white drop-shadow-sm"></i>
       </div>
       <div>
         <h1 class="text-lg font-bold text-white tracking-tight">Global Insight Engine</h1>
@@ -214,6 +205,10 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
         <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span>
         <span id="dataPointCount">Initializing...</span>
       </div>
+      <button onclick="openNewsGlobe()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-brand-600/80 hover:bg-brand-500 transition-colors shadow-md shadow-brand-500/10">
+        <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+        <span>Analyze Global Media</span>
+      </button>
       <div class="relative">
         <button onclick="document.getElementById('exportMenu').classList.toggle('show')" data-tooltip="Export insights as text, CSV, PNG, or share link" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass-light text-xs text-slate-400 hover:text-white transition-colors">
           <i data-lucide="download" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">Export</span>
@@ -629,7 +624,7 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
         <span class="globe-pulse-dot"></span>
         <span id="globeStatusText">Loading data stream...</span>
       </div>
-      <button id="globeSpinBtn" onclick="toggleGlobeSpin()" title="Pause / resume globe rotation" class="flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand-300 transition-colors bg-slate-800/50 hover:bg-slate-700/50 rounded-lg px-2.5 py-1.5 border border-slate-700/50">
+      <button id="globeSpinBtn" onclick="toggleGlobeSpin()" title="Pause / resume globe rotation" class="flex items-center gap-1.5 text-xs font-medium text-white hover:text-brand-100 transition-colors bg-brand-600/80 hover:bg-brand-500 rounded-lg px-3 py-1.5 shadow-md shadow-brand-500/10">
         <i data-lucide="pause" class="w-4 h-4"></i><span class="hidden sm:inline">Pause</span>
       </button>
       <button class="globe-close" onclick="closeNewsGlobe()" title="Close globe">
@@ -698,6 +693,6 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
 </div>
 
 <script src="/static/dataset_embed.js"></script>
-<script src="/static/app_v21.js"></script>
+<script src="/static/app_v22.js"></script>
 </body>
 </html>
