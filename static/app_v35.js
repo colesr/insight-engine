@@ -1,10 +1,9 @@
-// === app_v35.js — Bootstrap that loads v34 + coastline patch ===
+// === app_v35.js — Bootstrap that loads the main app + coastline patch ===
 (function() {
-  // Paths relative to the static mount point
   var base = '/static';
   var SCRIPTS = [
-    base + '/app_v34.js',
-    base + '/globe_patch.js'
+    base + '/app_v30.js',     // Main application (last known-working version in static/)
+    base + '/globe_patch.js'  // Coastline overlay patch
   ];
   
   console.log('app_v35: booting, loading ' + SCRIPTS.length + ' scripts...');
