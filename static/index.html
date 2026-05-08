@@ -240,14 +240,17 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
       <button draggable="true" data-tab="compare" id="tab-btn-compare" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white whitespace-nowrap flex items-center gap-1.5 cursor-move" data-tooltip="Side-by-side country comparison with radar charts. Drag to reorder.">
         <i data-lucide="grip-vertical" class="w-3 h-3 text-slate-600 mr-0.5 opacity-50 hover:opacity-100 transition-opacity tab-drag-handle"></i><i data-lucide="columns-3" class="w-3.5 h-3.5"></i>Compare
       </button>
-      <button draggable="true" data-tab="decisions" id="tab-btn-decisions" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white whitespace-nowrap flex items-center gap-1.5 cursor-move" data-tooltip="Weighted decision framework with priority sliders. Drag to reorder.">
-        <i data-lucide="grip-vertical" class="w-3 h-3 text-slate-600 mr-0.5 opacity-50 hover:opacity-100 transition-opacity tab-drag-handle"></i><i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>Decisions
+      <button draggable="true" data-tab="decisions" id="tab-btn-decisions" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white whitespace-nowrap flex items-center gap-1.5 cursor-move" data-tooltip="Weighted ranking with priority sliders. Drag to reorder.">
+        <i data-lucide="grip-vertical" class="w-3 h-3 text-slate-600 mr-0.5 opacity-50 hover:opacity-100 transition-opacity tab-drag-handle"></i><i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>Rank
       </button>
       <button draggable="true" data-tab="benchmark" id="tab-btn-benchmark" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white whitespace-nowrap flex items-center gap-1.5 cursor-move" data-tooltip="Profile a single country against regional or global peers. Drag to reorder.">
         <i data-lucide="grip-vertical" class="w-3 h-3 text-slate-600 mr-0.5 opacity-50 hover:opacity-100 transition-opacity tab-drag-handle"></i><i data-lucide="user" class="w-3.5 h-3.5"></i>Profile
       </button>
       <button draggable="true" data-tab="outliers" id="tab-btn-outliers" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white whitespace-nowrap flex items-center gap-1.5 cursor-move" data-tooltip="Find statistical outliers and edge cases in the data. Drag to reorder.">
         <i data-lucide="grip-vertical" class="w-3 h-3 text-slate-600 mr-0.5 opacity-50 hover:opacity-100 transition-opacity tab-drag-handle"></i><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>Outliers
+      </button>
+      <button draggable="true" data-tab="mapping" id="tab-btn-mapping" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white whitespace-nowrap flex items-center gap-1.5 cursor-move" data-tooltip="Create concept maps and relationship diagrams. Drag to reorder.">
+        <i data-lucide="grip-vertical" class="w-3 h-3 text-slate-600 mr-0.5 opacity-50 hover:opacity-100 transition-opacity tab-drag-handle"></i><i data-lucide="map" class="w-3.5 h-3.5"></i>Mapping
       </button>
     </div>
     <!-- Discrete theme toggle -->
@@ -344,10 +347,10 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
   </main>
 </div>
 
-<!-- SIMULATOR TAB -->
+<!-- SCENARIO BUILDER TAB -->
 <div id="tab-simulator" class="tab-content hidden max-w-[1920px] mx-auto p-4 sm:p-6">
   <div class="glass rounded-2xl p-6">
-    <h2 class="text-xl font-bold text-white mb-2 flex items-center gap-2"><i data-lucide="git-branch" class="w-5 h-5 text-brand-400"></i>Scenario Simulator</h2>
+    <h2 class="text-xl font-bold text-white mb-2 flex items-center gap-2"><i data-lucide="git-branch" class="w-5 h-5 text-brand-400"></i>Scenario Builder</h2>
     <p class="text-xs text-slate-400 mb-6">Adjust any variable and see projected changes across all correlated indicators.</p>
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-1 space-y-4">
@@ -408,11 +411,11 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
   </div>
 </div>
 
-<!-- DECISIONS TAB -->
+<!-- RANK TAB -->
 <div id="tab-decisions" class="tab-content hidden max-w-[1920px] mx-auto p-4 sm:p-6">
   <div class="glass rounded-2xl p-6">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-xl font-bold text-white flex items-center gap-2"><i data-lucide="sliders-horizontal" class="w-5 h-5 text-brand-400"></i>Decision Framework</h2>
+      <h2 class="text-xl font-bold text-white flex items-center gap-2"><i data-lucide="sliders-horizontal" class="w-5 h-5 text-brand-400"></i>Rank</h2>
       <button onclick="openChatbotFor('decisions')" class="explain-chart-btn px-2.5 py-1.5 rounded-md glass-light text-[0.65rem] text-slate-400 hover:text-brand-300 hover:border-brand-500/20 border border-transparent transition-all flex items-center gap-1.5"><i data-lucide="message-circle" class="w-3 h-3"></i>How this works</button>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -559,6 +562,34 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
 <!-- Chatbot overlay backdrop -->
 <div id="chatbotBackdrop" onclick="closeChatbot()" class="fixed inset-0 z-[75] bg-black/40 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300"></div>
 
+<!-- MAPPING TAB -->
+<div id="tab-mapping" class="tab-content hidden max-w-[1920px] mx-auto p-4 sm:p-6">
+  <div class="glass rounded-2xl p-6 flex flex-col" style="height: calc(100vh - 200px);">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-white flex items-center gap-2"><i data-lucide="map" class="w-5 h-5 text-brand-400"></i>Mapping</h2>
+      <div class="flex items-center gap-2">
+        <button onclick="addMappingCard()" class="px-3 py-1.5 rounded-lg glass-light text-xs text-slate-300 hover:text-white hover:bg-slate-700/50 transition-colors flex items-center gap-1.5">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i>Add Card
+        </button>
+        <button onclick="clearMapping()" class="px-3 py-1.5 rounded-lg glass-light text-xs text-slate-300 hover:text-white hover:bg-slate-700/50 transition-colors flex items-center gap-1.5">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>Clear
+        </button>
+        <button onclick="openChatbotFor('mapping')" class="explain-chart-btn px-2 py-1 rounded-md glass-light text-[0.65rem] text-slate-400 hover:text-brand-300 hover:border-brand-500/20 border border-transparent transition-all flex items-center gap-1"><i data-lucide="message-circle" class="w-3 h-3"></i>Explain</button>
+      </div>
+    </div>
+    <p class="text-xs text-slate-400 mb-3">Click & drag cards to arrange. Click "connect" on a card to draw a connection line to another card. Click a card to edit its note.</p>
+    <div id="mappingCanvas" class="relative flex-1 rounded-xl border border-slate-700/30 overflow-hidden" style="background: linear-gradient(rgba(15,23,42,0.6), rgba(15,23,42,0.6)), radial-gradient(circle at 1px 1px,rgba(148,163,184,.06) 1px,transparent 0); background-size: 40px 40px; cursor: grab;">
+      <svg id="mappingLines" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 1;"></svg>
+      <div id="mappingCardsContainer" class="absolute inset-0" style="z-index: 2;"></div>
+    </div>
+    <div class="mt-2 flex items-center gap-4 text-[0.6rem] text-slate-500">
+      <span class="flex items-center gap-1"><i data-lucide="mouse-pointer-click" class="w-3 h-3"></i> Drag cards to move</span>
+      <span class="flex items-center gap-1"><i data-lucide="pen-tool" class="w-3 h-3"></i> Click "connect" then click target card to draw line</span>
+      <span class="flex items-center gap-1"><i data-lucide="text" class="w-3 h-3"></i> Click card text to edit</span>
+    </div>
+  </div>
+</div>
+
 <!-- "Explain this" tooltip style floating buttons for charts -->
 <div id="explainTooltip" class="fixed z-[55] hidden" style="pointer-events:none">
   <div class="glass-light rounded-lg px-2.5 py-1.5 text-xs text-brand-300 flex items-center gap-1.5 shadow-lg shadow-brand-500/10" style="pointer-events:auto">
@@ -568,6 +599,6 @@ html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:
 </div>
 
 <script src="/static/dataset_embed.js"></script>
-<script src="/static/app_v17.js"></script>
+<script src="/static/app_v18.js"></script>
 </body>
 </html>
