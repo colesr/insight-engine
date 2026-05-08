@@ -9,6 +9,6 @@ tags:
 - ml-intern
 ---
 
-Global Insight Engine - deployed $(date -u +%Y-%m-%dT%H:%M:%SZ)
+Global Insight Engine — deployed 2025-08-05
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
