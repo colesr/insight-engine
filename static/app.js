@@ -1,5 +1,5 @@
 // === GLOBAL INSIGHT ENGINE v6 - DOCKER + FASTAPI ===
-// Updated: 2024-01-08-v9
+// Updated: 2024-01-08-v10
 const CONFIG = { maxCountries: 200, correlationThreshold: 0.3, outlierZScore: 2 };
 let dataset = [], variableDefs = [], categories = [], selectedVar = null;
 let corrFilter = 'all', activeCategory = null, activeTab = 'explorer', peerMode = 'global';
@@ -285,8 +285,8 @@ async function fetchWorldBankPreset(presetId) {
   if (!preset) { showStatus('Preset not found', 100); return; }
   showStatus('Fetching ' + preset.name + '...', 20);
   try {
-    const sources = await api('/api/sources/list');
-    const p = sources.worldbank_presets.find(x => x.id === presetId);
+    const resp = await api('/api/sources/list');
+    const p = (resp.sources && resp.sources.worldbank_presets || []).find(x => x.id === presetId);
     if (!p) { showStatus('Preset not found on server', 100); return; }
     const result = await api(`/api/worldbank/fetch?indicators=${p.indicators}&countries=all&date_range=2020:2023`);
     if (!result.data || !result.data.length) { showStatus('No data returned', 100); return; }
@@ -363,6 +363,8 @@ async function fetchWorldBankData() {
     renderCategoryGrid(); renderVariableList(); initDecisionFramework();
     initBenchmark(); initSimulatorUI(); initCompareUI();
     lucide.createIcons();
+    const dp3 = document.getElementById('dataPointCount');
+    if (dp3) dp3.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span><span>${variableDefs.length} variables</span>`;
   } catch (e) { showStatus('Fetch failed: ' + e.message, 100); }
 }
 
@@ -384,6 +386,8 @@ async function fetchClimateData() {
     renderCategoryGrid(); renderVariableList(); initDecisionFramework();
     initBenchmark(); initSimulatorUI(); initCompareUI();
     lucide.createIcons();
+    const dp4 = document.getElementById('dataPointCount');
+    if (dp4) dp4.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span><span>${variableDefs.length} variables</span>`;
   } catch (e) { showStatus('Climate fetch failed: ' + e.message, 100); }
 }
 
