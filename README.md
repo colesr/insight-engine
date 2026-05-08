@@ -11,4 +11,4 @@ pinned: false
 
 # Global Insight Engine v35
 
-Interactive data exploration platform with 120+ development indicators, sentiment globe (with Natural Earth coastlines), and correlation analysis.
+Interactive data exploration with 120+ indicators, Natural Earth coastlines on 3D globe, and correlation analysis.
