@@ -1,4 +1,5 @@
 // === GLOBAL INSIGHT ENGINE v6 - DOCKER + FASTAPI ===
+// Updated: 2024-01
 const CONFIG = { maxCountries: 200, correlationThreshold: 0.3, outlierZScore: 2 };
 let dataset = [], variableDefs = [], categories = [], selectedVar = null;
 let corrFilter = 'all', activeCategory = null, activeTab = 'explorer', peerMode = 'global';
