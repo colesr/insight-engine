@@ -2,7 +2,7 @@
 (function() {
   var base = '/static';
   var SCRIPTS = [
-    base + '/app_v30.js',     // Main application (last known-working version in static/)
+    base + '/app_v33.js',     // Main application (v33 - most feature-complete working version)
     base + '/globe_patch.js'  // Coastline overlay patch
   ];
   
