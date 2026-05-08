@@ -213,9 +213,9 @@ async function fetchClimateData() {
 function selectDatasetPack(name) { switchToDataset(name); }
 
 // === CORE ===
-function init() {
+async function init() {
   showStatus('Initializing...', 10);
-  initDatasetSystem();
+  await loadDefaultDataset();
   dataset = DATASET; variableDefs = VARIABLE_DEFS;
   categories = [...new Set(variableDefs.map(v => v.category))];
   variableDefs.forEach(v => weights[v.key] = 1);
