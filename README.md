@@ -1,23 +1,15 @@
----
-title: Test Dev Agent
-emoji: 🌍
-colorFrom: gray
-colorTo: blue
-sdk: docker
-app_port: 7860
-pinned: false
-tags:
-- ml-intern
----
+# Global Insight Engine
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+Docker Space for the Global Insight Engine — an interactive data exploration platform with 120+ development indicators, sentiment globe, and correlation analysis.
 
-Last updated: Aug 6 2026
-v31
-Fri May  8 15:16:10 UTC 2026
-v32
-Fri May  8 16:22:41 UTC 2026
-v33
-Fri May  8 16:33:52 UTC 2026
-v34
-Fri May  8 16:41:48 UTC 2026
+## Features
+- Interactive 3D globe with real-time news sentiment
+- Variable explorer with correlations, distributions, and network graphs
+- Scenario simulator, country comparison, priority ranking
+- Natural Earth coastline overlay on the sentiment globe
+
+## Deploy
+```bash
+docker build -t insight-engine .
+docker run -p 7860:7860 insight-engine
+```
