@@ -52,6 +52,12 @@ _loaded_datasets: Dict[str, Dict[str, Any]] = {}
 def _make_id() -> str:
     return hashlib.sha256(str(time.time()).encode()).hexdigest()[:12]
 
+# Root: serve the frontend app
+@app.get("/")
+def serve_index():
+    with open("static/index.html", "r") as f:
+        return f.read()
+
 # Root health endpoint
 @app.get("/api/health")
 def health():
@@ -59,17 +65,6 @@ def health():
 
 # Static files — serve at /static/ for JS, CSS, images
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# SPA catch-all: serve index.html for all non-API, non-static paths
-from fastapi import Request
-@app.get("/{path:path}")
-def serve_spa(path: str, request: Request):
-    # If it's an API call or static file request, skip
-    if path.startswith("api/") or path.startswith("static/"):
-        raise HTTPException(status_code=404)
-    # Serve index.html for all other paths (SPA routing)
-    with open("static/index.html", "r") as f:
-        return f.read()
 
 # ============================================================================
 # WORLD BANK API
