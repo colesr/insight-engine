@@ -71,6 +71,69 @@
 </script>
 <script src="/static/globe_patch.js"></script>
 <script>
+// === GLOBE DIAGNOSTIC ===
+// Check globe functions and provide fallback
+(function() {
+  console.log('globe_diag:', typeof openNewsGlobe, typeof initGlobe, typeof closeNewsGlobe);
+
+  // Wrap openNewsGlobe with diagnostic logging (once it exists)
+  var _checkTimer = 0;
+  function checkAndWrap() {
+    _checkTimer++;
+    if (typeof openNewsGlobe === 'function') {
+      console.log('globe_diag: openNewsGlobe found at poll #' + _checkTimer + ', wrapping');
+      var _orig = openNewsGlobe;
+      window.openNewsGlobe = function() {
+        console.log('globe_diag: openNewsGlobe() called');
+        var overlay = document.getElementById('globeOverlay');
+        var container = document.getElementById('globeContainer');
+        var loading = document.getElementById('globeLoading');
+        console.log('globe_diag: overlay=', !!overlay, 'container=', !!container, 'loading=', !!loading);
+        console.log('globe_diag: overlay.classList=', overlay ? overlay.className : 'n/a');
+        try {
+          _orig();
+          console.log('globe_diag: original openNewsGlobe completed');
+        } catch(e) {
+          console.error('globe_diag: openNewsGlobe error:', e.message, e.stack);
+          // Fallback: show overlay manually
+          if (overlay) {
+            overlay.classList.add('open');
+            console.log('globe_diag: fallback: added "open" class to overlay');
+          }
+        }
+      };
+      console.log('globe_diag: wrapped openNewsGlobe with diagnostic');
+      return; // done
+    }
+    if (_checkTimer > 200) {
+      // After 10s, provide a fallback
+      console.warn('globe_diag: openNewsGlobe never appeared after 10s, installing fallback');
+      window.openNewsGlobe = function() {
+        console.log('globe_diag: FALLBACK openNewsGlobe() running');
+        var overlay = document.getElementById('globeOverlay');
+        if (overlay) {
+          overlay.classList.add('open');
+          console.log('globe_diag: fallback added "open" class');
+        }
+        // Try initGlobe too
+        if (typeof initGlobe === 'function') {
+          try { initGlobe(); console.log('globe_diag: fallback called initGlobe()'); }
+          catch(e) { console.error('globe_diag: initGlobe error in fallback:', e.message); }
+        }
+      };
+      if (!window.closeNewsGlobe || typeof closeNewsGlobe !== 'function') {
+        window.closeNewsGlobe = function() {
+          var overlay = document.getElementById('globeOverlay');
+          if (overlay) overlay.classList.remove('open');
+        };
+      }
+      return;
+    }
+    setTimeout(checkAndWrap, 50);
+  }
+  setTimeout(checkAndWrap, 50); // Start checking
+})();
+
 lucide.createIcons();
 if (typeof init === 'function') { init(); }
 </script>
