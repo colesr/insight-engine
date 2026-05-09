@@ -6,8 +6,7 @@ RUN pip install --no-cache-dir fastapi uvicorn[standard] requests aiohttp pandas
 
 COPY . .
 
-# Copy the last known-good app version into static/
-RUN cp app_v30.js static/app_v30.js && cp app_v31.js static/app_v31.js
+RUN cp app_v31.js static/app_v31.js || true
 
 EXPOSE 7860
 
