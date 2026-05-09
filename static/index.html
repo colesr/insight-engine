@@ -72,8 +72,7 @@
 <script src="/static/globe_patch.js"></script>
 <script>
 // === GLOBE FIX ===
-// Wrap openNewsGlobe: run original, then force .open class on overlay
-// The original app_v30 function completes without error but doesn't add the .open class
+// Wrap openNewsGlobe: run original, force .open class, then call initGlobe
 (function() {
   function wrapGlobe() {
     if (typeof openNewsGlobe !== 'function') {
@@ -81,14 +80,30 @@
     }
     var _orig = openNewsGlobe;
     window.openNewsGlobe = function() {
+      console.log('globe_fix: openNewsGlobe called, running original then forcing init');
       _orig();
       var overlay = document.getElementById('globeOverlay');
-      if (overlay) {
-        overlay.classList.add('open');
-        console.log('globe_fix: forced .open class onto globeOverlay');
-      }
+      if (overlay) overlay.classList.add('open');
+
+      // Force-call initGlobe after a short delay (let overlay transition start)
+      setTimeout(function() {
+        console.log('globe_fix: calling initGlobe. typeof=', typeof initGlobe);
+        if (typeof initGlobe === 'function') {
+          try {
+            initGlobe();
+            console.log('globe_fix: initGlobe completed');
+            // Hide loading
+            var loading = document.getElementById('globeLoading');
+            if (loading) loading.classList.add('hidden');
+          } catch(e) {
+            console.error('globe_fix: initGlobe error:', e.message, e.stack);
+          }
+        } else {
+          console.error('globe_fix: initGlobe is not a function');
+        }
+      }, 300);
     };
-    console.log('globe_fix: openNewsGlobe wrapped with .open class force');
+    console.log('globe_fix: openNewsGlobe wrapped');
   }
   setTimeout(wrapGlobe, 50);
 })();
