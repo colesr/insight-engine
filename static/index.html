@@ -71,67 +71,26 @@
 </script>
 <script src="/static/globe_patch.js"></script>
 <script>
-// === GLOBE DIAGNOSTIC ===
-// Check globe functions and provide fallback
+// === GLOBE FIX ===
+// Wrap openNewsGlobe: run original, then force .open class on overlay
+// The original app_v30 function completes without error but doesn't add the .open class
 (function() {
-  console.log('globe_diag:', typeof openNewsGlobe, typeof initGlobe, typeof closeNewsGlobe);
-
-  // Wrap openNewsGlobe with diagnostic logging (once it exists)
-  var _checkTimer = 0;
-  function checkAndWrap() {
-    _checkTimer++;
-    if (typeof openNewsGlobe === 'function') {
-      console.log('globe_diag: openNewsGlobe found at poll #' + _checkTimer + ', wrapping');
-      var _orig = openNewsGlobe;
-      window.openNewsGlobe = function() {
-        console.log('globe_diag: openNewsGlobe() called');
-        var overlay = document.getElementById('globeOverlay');
-        var container = document.getElementById('globeContainer');
-        var loading = document.getElementById('globeLoading');
-        console.log('globe_diag: overlay=', !!overlay, 'container=', !!container, 'loading=', !!loading);
-        console.log('globe_diag: overlay.classList=', overlay ? overlay.className : 'n/a');
-        try {
-          _orig();
-          console.log('globe_diag: original openNewsGlobe completed');
-        } catch(e) {
-          console.error('globe_diag: openNewsGlobe error:', e.message, e.stack);
-          // Fallback: show overlay manually
-          if (overlay) {
-            overlay.classList.add('open');
-            console.log('globe_diag: fallback: added "open" class to overlay');
-          }
-        }
-      };
-      console.log('globe_diag: wrapped openNewsGlobe with diagnostic');
-      return; // done
+  function wrapGlobe() {
+    if (typeof openNewsGlobe !== 'function') {
+      setTimeout(wrapGlobe, 50); return;
     }
-    if (_checkTimer > 200) {
-      // After 10s, provide a fallback
-      console.warn('globe_diag: openNewsGlobe never appeared after 10s, installing fallback');
-      window.openNewsGlobe = function() {
-        console.log('globe_diag: FALLBACK openNewsGlobe() running');
-        var overlay = document.getElementById('globeOverlay');
-        if (overlay) {
-          overlay.classList.add('open');
-          console.log('globe_diag: fallback added "open" class');
-        }
-        // Try initGlobe too
-        if (typeof initGlobe === 'function') {
-          try { initGlobe(); console.log('globe_diag: fallback called initGlobe()'); }
-          catch(e) { console.error('globe_diag: initGlobe error in fallback:', e.message); }
-        }
-      };
-      if (!window.closeNewsGlobe || typeof closeNewsGlobe !== 'function') {
-        window.closeNewsGlobe = function() {
-          var overlay = document.getElementById('globeOverlay');
-          if (overlay) overlay.classList.remove('open');
-        };
+    var _orig = openNewsGlobe;
+    window.openNewsGlobe = function() {
+      _orig();
+      var overlay = document.getElementById('globeOverlay');
+      if (overlay) {
+        overlay.classList.add('open');
+        console.log('globe_fix: forced .open class onto globeOverlay');
       }
-      return;
-    }
-    setTimeout(checkAndWrap, 50);
+    };
+    console.log('globe_fix: openNewsGlobe wrapped with .open class force');
   }
-  setTimeout(checkAndWrap, 50); // Start checking
+  setTimeout(wrapGlobe, 50);
 })();
 
 lucide.createIcons();
