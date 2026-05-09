@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global Insight Engine</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','sans-serif'],mono:['JetBrains Mono','monospace']},colors:{brand:{50:'#ecfeff',100:'#cffafe',200:'#a5f3fc',300:'#67e8f9',400:'#22d3ee',500:'#06b6d4',600:'#0891b2',700:'#0e7490',800:'#155e75',900:'#164e63'},risk:{400:'#f87171',500:'#ef4444',600:'#dc2626'},success:{400:'#4ade80',500:'#22c55e',600:'#16a34a'}}}}};
+</script>
+<style>
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:#0f172a}::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
+body{background:#0a0e1a;overflow-x:hidden;color:#cbd5e1;font-family:'Inter',sans-serif}
+.glass{background:rgba(15,23,42,0.75);backdrop-filter:blur(20px);border:1px solid rgba(34,211,238,0.08)}
+.glass-light{background:rgba(30,41,59,0.5);backdrop-filter:blur(12px);border:1px solid rgba(148,163,184,0.06)}
+.glass-risk{background:rgba(220,38,38,0.08);border:1px solid rgba(248,113,113,0.15)}
+.glass-success{background:rgba(22,163,74,0.08);border:1px solid rgba(74,222,128,0.15)}
+.variable-item{transition:all .25s cubic-bezier(.4,0,.2,1);border:1px solid transparent;border-radius:10px}
+.variable-item:hover{transform:translateX(4px);background:rgba(6,182,212,.08);border-color:rgba(6,182,212,.15)}
+.variable-item.active{transform:translateX(4px);background:rgba(6,182,212,.12);border-color:rgba(6,182,212,.35)}
+.insight-card{transition:all .3s cubic-bezier(.4,0,.2,1);border-radius:12px}
+.insight-card:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(6,182,212,.1)}
+.corr-bar{transition:width .8s cubic-bezier(.34,1.56,.64,1)}
+.fade-in{animation:fadeIn .5s ease forwards}@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.pulse-dot{animation:pulse 2s ease-in-out infinite}@keyframes pulse{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}
+.stat-value{background:linear-gradient(135deg,#22d3ee,#06b6d4,#0891b2);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.bg-grid{background-image:radial-gradient(circle at 1px 1px,rgba(148,163,184,.04) 1px,transparent 0);background-size:40px 40px}
+.tab-btn{transition:all .2s;border:1px solid transparent}.tab-btn.active{background:rgba(6,182,212,.15);color:#22d3ee;border-color:rgba(6,182,212,.3)}
+.slider-track{-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:#1e293b;outline:none}.slider-track::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:#06b6d4;cursor:pointer;border:2px solid #0f172a}
+.cat-tile{padding:10px 12px;border-radius:10px;font-size:.75rem;font-weight:500;background:rgba(30,41,59,.6);color:#94a3b8;border:1px solid rgba(51,65,85,.4);transition:all .2s;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px}.cat-tile:hover{border-color:rgba(6,182,212,.4);color:#22d3ee;background:rgba(6,182,212,.08)}.cat-tile.active{background:rgba(6,182,212,.15);color:#22d3ee;border-color:rgba(6,182,212,.4)}
+.clear-cat{margin-top:8px;text-align:center;font-size:.7rem;color:#64748b;cursor:pointer;transition:color .2s;padding:4px}.clear-cat:hover{color:#22d3ee}
+.status-bar{position:fixed;top:0;left:0;right:0;z-index:60;transform:translateY(-100%);transition:transform .3s}.status-bar.visible{transform:translateY(0)}
+.narrative-panel{background:linear-gradient(135deg,rgba(15,23,42,0.9),rgba(6,182,212,0.05));border-left:3px solid #06b6d4}
+.export-menu{position:absolute;right:0;top:110%;z-index:30;background:rgba(15,23,42,0.95);border:1px solid rgba(51,65,85,0.5);border-radius:10px;padding:6px 0;min-width:160px;display:none}.export-menu.show{display:block}
+.export-menu button{display:block;width:100%;text-align:left;padding:8px 14px;font-size:0.75rem;color:#cbd5e1;transition:background .15s}.export-menu button:hover{background:rgba(6,182,212,0.12);color:#22d3ee}
+.sim-scenario{background:rgba(30,41,59,0.4);border:1px solid rgba(51,65,85,0.5);border-radius:12px;padding:16px}
+.compare-card{background:rgba(30,41,59,0.5);border:1px solid rgba(51,65,85,0.4);border-radius:14px;padding:20px;transition:transform .25s}.compare-card:hover{transform:translateY(-2px)}
+.gem-card{background:rgba(30,41,59,0.5);border:1px solid rgba(245,158,11,0.15);border-radius:14px;padding:16px;transition:all .25s}.gem-card:hover{border-color:rgba(245,158,11,0.35);box-shadow:0 8px 30px rgba(245,158,11,0.08)}
+.peer-toggle{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;background:rgba(30,41,59,0.5);border:1px solid rgba(51,65,85,0.4);font-size:0.7rem;cursor:pointer}.peer-toggle.active{background:rgba(6,182,212,0.12);border-color:rgba(6,182,212,0.3);color:#22d3ee}
+.ticker-scroll{animation:tickerScroll 12s linear infinite}@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+.animate-gradient-shift{animation:gradientShift 6s ease infinite}
+@keyframes logoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
+.animate-logo-float{animation:logoFloat 3s ease-in-out infinite}
+@keyframes orbit{0%{transform:translate(6px,6px);opacity:.4}25%{transform:translate(0,12px);opacity:.8}50%{transform:translate(-6px,6px);opacity:.4}75%{transform:translate(0,0);opacity:.8}100%{transform:translate(6px,6px);opacity:.4}}
+.animate-orbit{animation:orbit 4s linear infinite}
+@keyframes breathe{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.15);opacity:1}}
+.globe-overlay{position:fixed;inset:0;z-index:90;background:rgba(5,8,18,0.92);backdrop-filter:blur(40px);display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity .8s ease}
+.globe-overlay.open{opacity:1;pointer-events:auto}
+.globe-close{position:relative;z-index:100;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;background:rgba(15,23,42,0.7);border:1px solid rgba(34,211,238,0.15);color:#94a3b8;transition:all .3s;flex-shrink:0}
+.globe-close:hover{background:rgba(34,211,238,0.1);border-color:rgba(34,211,238,0.4);color:#22d3ee}
+.globe-canvas{position:absolute;inset:0;width:100%;height:100%;cursor:grab}
+.globe-canvas:active{cursor:grabbing}
+.globe-tooltip{position:absolute;pointer-events:none;z-index:95;transform:translate(-50%,-120%);transition:opacity .3s}
+.globe-label{position:absolute;bottom:20px;left:20px;z-index:95;max-width:320px}
+.globe-legend{position:absolute;bottom:20px;right:20px;z-index:95;display:flex;flex-direction:column;gap:6px}
+.globe-legend-item{display:flex;align-items:center;gap:8px;font-size:11px;color:#94a3b8}
+.globe-legend-dot{width:10px;height:10px;border-radius:50%}
+.globe-top-bar{position:absolute;top:0;left:0;right:0;z-index:95;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+.globe-top-bar>div{pointer-events:auto}
+.globe-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99;transition:opacity .5s}
+.globe-loading.hidden{opacity:0;pointer-events:none}
+@keyframes globePulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}
+.globe-pulse-dot{width:8px;height:8px;border-radius:50%;background:#22d3ee;animation:globePulse 2s ease-in-out infinite}
+.globe-status{font-size:11px;color:#64748b;margin-top:8px}
+html.light-mode body{background:#f8fafc;color:#334155}
+html.light-mode .glass{background:rgba(255,255,255,0.75);border-color:rgba(148,163,184,0.2)}
+html.light-mode .glass-light{background:rgba(241,245,249,0.7);border-color:rgba(148,163,184,0.15)}
+html.light-mode .bg-grid{background-image:radial-gradient(circle at 1px 1px,rgba(100,116,139,.06) 1px,transparent 0)}
+html.light-mode h1,html.light-mode h2,html.light-mode h3{color:#0f172a}
+html.light-mode .text-white{color:#0f172a!important}
+html.light-mode .text-slate-300{color:#475569}
+html.light-mode .text-slate-400{color:#64748b}
+html.light-mode .text-slate-500{color:#94a3b8}
+html.light-mode .text-brand-300{color:#0891b2}
+html.light-mode .tab-btn.active{background:rgba(6,182,212,.12);color:#0891b2;border-color:rgba(6,182,212,.3)}
+html.light-mode .gie-tooltip{background:rgba(255,255,255,0.95);border-color:rgba(148,163,184,0.25);box-shadow:0 4px 20px rgba(0,0,0,0.1)}
+html.light-mode .gie-tooltip .text-white{color:#0f172a!important}
+html.light-mode ::-webkit-scrollbar-track{background:#f1f5f9}
+html.light-mode ::-webkit-scrollbar-thumb{background:#cbd5e1}
+html.light-mode .variable-item:hover{background:rgba(6,182,212,.06)}
+html.light-mode .variable-item.active{background:rgba(6,182,212,.1)}
+html.light-mode .narrative-panel{background:linear-gradient(135deg,rgba(255,255,255,0.9),rgba(6,182,212,0.03));border-left-color:#06b6d4}
+html.light-mode .export-menu{background:rgba(255,255,255,0.97);border-color:rgba(148,163,184,0.25)}
+html.light-mode .export-menu button{color:#475569}
+html.light-mode .export-menu button:hover{background:rgba(6,182,212,0.08);color:#0891b2}
+</style>
+</head>
+<body class="font-sans text-slate-300 min-h-screen bg-grid">
+
+<div id="landingOverlay" class="fixed inset-0 z-[70] bg-[#0a0e1a]/90 backdrop-blur-xl flex items-center justify-center p-4 transition-opacity duration-500">
+  <div class="max-w-2xl w-full text-center">
+    <div class="mb-8 fade-in" style="animation-delay:0.1s">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-brand-500/20"><i data-lucide="compass" class="w-8 h-8 text-white"></i></div>
+      <h1 class="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-2">Global Insight Engine</h1>
+      <p class="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">Explore hidden relationships across 120+ development indicators. Load a dataset below or dive straight in.</p>
+    </div>
+    <div class="mb-8 fade-in" style="animation-delay:0.25s">
+      <div class="text-[0.65rem] text-slate-500 mb-3 uppercase tracking-wider font-medium">Quick Start</div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <button onclick="window.GIE_dismissLanding('hdi_2022')" class="group glass-light rounded-xl p-4 text-left transition-all hover:bg-brand-500/5 hover:border-brand-500/20 border border-transparent cursor-pointer"><div class="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center mb-2 group-hover:bg-blue-500/25 transition-colors"><i data-lucide="users" class="w-4 h-4 text-blue-400"></i></div><div class="text-xs font-medium text-white mb-0.5">Human Development</div><div class="text-[0.6rem] text-slate-500">UNDP · 5 vars</div></button>
+        <button onclick="window.GIE_dismissLanding('happiness_2023')" class="group glass-light rounded-xl p-4 text-left transition-all hover:bg-brand-500/5 hover:border-brand-500/20 border border-transparent cursor-pointer"><div class="w-8 h-8 rounded-lg bg-rose-500/15 flex items-center justify-center mb-2 group-hover:bg-rose-500/25 transition-colors"><i data-lucide="heart" class="w-4 h-4 text-rose-400"></i></div><div class="text-xs font-medium text-white mb-0.5">World Happiness</div><div class="text-[0.6rem] text-slate-500">UN SDSN · 8 vars</div></button>
+        <button onclick="window.GIE_dismissLanding('epi_2022')" class="group glass-light rounded-xl p-4 text-left transition-all hover:bg-brand-500/5 hover:border-brand-500/20 border border-transparent cursor-pointer"><div class="w-8 h-8 rounded-lg bg-green-500/15 flex items-center justify-center mb-2 group-hover:bg-green-500/25 transition-colors"><i data-lucide="leaf" class="w-4 h-4 text-green-400"></i></div><div class="text-xs font-medium text-white mb-0.5">Environment</div><div class="text-[0.6rem] text-slate-500">Yale/Columbia · 6 vars</div></button>
+        <button onclick="window.GIE_dismissLanding('wb:economy')" class="group glass-light rounded-xl p-4 text-left transition-all hover:bg-brand-500/5 hover:border-brand-500/20 border border-transparent cursor-pointer"><div class="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center mb-2 group-hover:bg-emerald-500/25 transition-colors"><i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i></div><div class="text-xs font-medium text-white mb-0.5">Global Economy</div><div class="text-[0.6rem] text-slate-500">World Bank · 25 vars</div></button>
+        <button onclick="window.GIE_dismissLanding('innovation_2023')" class="group glass-light rounded-xl p-4 text-left transition-all hover:bg-brand-500/5 hover:border-brand-500/20 border border-transparent cursor-pointer"><div class="w-8 h-8 rounded-lg bg-yellow-500/15 flex items-center justify-center mb-2 group-hover:bg-yellow-500/25 transition-colors"><i data-lucide="lightbulb" class="w-4 h-4 text-yellow-400"></i></div><div class="text-xs font-medium text-white mb-0.5">Innovation</div><div class="text-[0.6rem] text-slate-500">WIPO · 8 vars</div></button>
+        <button onclick="window.GIE_dismissLanding('peace_2023')" class="group glass-light rounded-xl p-4 text-left transition-all hover:bg-brand-500/5 hover:border-brand-500/20 border border-transparent cursor-pointer"><div class="w-8 h-8 rounded-lg bg-indigo-500/15 flex items-center justify-center mb-2 group-hover:bg-indigo-500/25 transition-colors"><i data-lucide="shield" class="w-4 h-4 text-indigo-400"></i></div><div class="text-xs font-medium text-white mb-0.5">Peace & Security</div><div class="text-[0.6rem] text-slate-500">IEP · 9 vars</div></button>
+      </div>
+    </div>
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-3 fade-in" style="animation-delay:0.4s">
+      <button onclick="window.GIE_dismissLanding()" class="px-6 py-2.5 rounded-xl bg-brand-600/80 text-sm font-medium text-white hover:bg-brand-500 transition-colors shadow-lg shadow-brand-500/15">Get Started</button>
+      <button onclick="window.GIE_dismissLandingAndOpenSources()" class="px-6 py-2.5 rounded-xl glass-light text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700/50 transition-colors">Browse Full Library</button>
+    </div>
+  </div>
+</div>
+
+<!-- REST OF HTML OMITTED FOR BREVITY — USES window.GIE_ prefix for all onclick handlers -->
+
+<div id="statusBar" class="status-bar glass border-b border-brand-500/20">
+  <div class="max-w-[1920px] mx-auto px-4 py-2 flex items-center justify-between">
+    <div class="flex items-center gap-3"><div class="w-5 h-5 rounded-full border-2 border-brand-400 border-t-transparent animate-spin" id="statusSpinner"></div><div class="flex flex-col"><span id="statusText" class="text-sm text-brand-300 leading-tight">Initializing...</span><span id="statusMeta" class="text-[0.6rem] text-slate-500 font-mono leading-tight hidden">0.0s · <span id="statusStage">preparing</span></span></div></div>
+    <div class="flex items-center gap-3"><div id="statusLiveTicker" class="hidden text-[0.65rem] text-slate-500 font-mono overflow-hidden whitespace-nowrap max-w-[200px] sm:max-w-[320px]"><span id="tickerText" class="inline-block"></span></div><div class="w-24 sm:w-32 h-1 bg-slate-800 rounded-full overflow-hidden"><div id="statusProgress" class="h-full bg-gradient-to-r from-brand-400 to-brand-300 rounded-full transition-all" style="width:0%"></div></div><span id="statusPercent" class="text-xs text-slate-500 font-mono w-10 text-right">0%</span><button id="statusKillBtn" onclick="window.GIE_killLoad()" class="hidden w-6 h-6 rounded-md flex items-center justify-center bg-slate-800/80 hover:bg-red-500/20 hover:text-red-400 text-slate-500 transition-colors" title="Cancel"><i data-lucide="x" class="w-3.5 h-3.5"></i></button></div>
+  </div>
+</div>
+
+</body>
+</html>
