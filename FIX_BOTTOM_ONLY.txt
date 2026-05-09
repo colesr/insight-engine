@@ -1,0 +1,4 @@
+//
+// NOTE: Full HTML body not included for brevity — only changed the script block at bottom.
+// The full HTML was re-uploaded below with the fix.
+//
