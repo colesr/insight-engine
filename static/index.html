@@ -70,46 +70,6 @@
 })();
 </script>
 <script src="/static/globe_patch.js"></script>
-<script>
-// === GLOBE FIX ===
-// Wrap openNewsGlobe: run original, force .open class, then call initGlobe
-(function() {
-  function wrapGlobe() {
-    if (typeof openNewsGlobe !== 'function') {
-      setTimeout(wrapGlobe, 50); return;
-    }
-    var _orig = openNewsGlobe;
-    window.openNewsGlobe = function() {
-      console.log('globe_fix: openNewsGlobe called, running original then forcing init');
-      _orig();
-      var overlay = document.getElementById('globeOverlay');
-      if (overlay) overlay.classList.add('open');
-
-      // Force-call initGlobe after a short delay (let overlay transition start)
-      setTimeout(function() {
-        console.log('globe_fix: calling initGlobe. typeof=', typeof initGlobe);
-        if (typeof initGlobe === 'function') {
-          try {
-            initGlobe();
-            console.log('globe_fix: initGlobe completed');
-            // Hide loading
-            var loading = document.getElementById('globeLoading');
-            if (loading) loading.classList.add('hidden');
-          } catch(e) {
-            console.error('globe_fix: initGlobe error:', e.message, e.stack);
-          }
-        } else {
-          console.error('globe_fix: initGlobe is not a function');
-        }
-      }, 300);
-    };
-    console.log('globe_fix: openNewsGlobe wrapped');
-  }
-  setTimeout(wrapGlobe, 50);
-})();
-
-lucide.createIcons();
-if (typeof init === 'function') { init(); }
-</script>
+<script>lucide.createIcons(); if (typeof init==='function')init();</script>
 </body>
 </html>
