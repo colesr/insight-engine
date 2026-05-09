@@ -48,8 +48,10 @@
 
 <div id="globeOverlay" class="globe-overlay"><div class="globe-top-bar"><div class="flex items-center gap-3"><div class="text-sm font-semibold text-white">Global Media Pulse</div><div class="text-[0.65rem] text-slate-400" id="globeArticleCount"></div></div><button onclick="closeNewsGlobe()" class="globe-close"><i data-lucide="x" class="w-4 h-4"></i></button></div><div id="globeLoading" class="globe-loading"><div class="globe-pulse-dot"></div><div class="globe-status">Loading sentiment data...</div></div><div id="globeContainer" class="globe-canvas"></div><div id="globeTooltip" class="globe-tooltip" style="opacity:0"><div class="glass rounded-xl px-4 py-3"><div id="globeCountry" class="text-sm font-semibold text-white"></div><div id="globeSentiment" class="text-xs text-slate-400 mt-1"></div></div></div><div class="globe-label"><div class="text-xs text-slate-500 mb-1">Real-time Sentiment</div><div class="text-sm font-semibold text-white">News Sentiment Globe</div><div class="text-[0.6rem] text-slate-500 mt-1">Dots = countries sized by article volume. Color = sentiment polarity.</div></div><div class="globe-legend"><div class="globe-legend-item"><div class="globe-legend-dot" style="background:#22d3ee"></div>Positive</div><div class="globe-legend-item"><div class="globe-legend-dot" style="background:#f43f5e"></div>Negative</div><div class="globe-legend-item"><div class="globe-legend-dot" style="background:#94a3b8"></div>Neutral</div></div></div>
 
+<!-- Synchronous load order: dataset embed → app → simulator shim → coastline patch → init -->
 <script src="/static/dataset_embed.js"></script>
 <script src="/static/app_v30.js"></script>
+<script src="/static/shim_simulator.js"></script>
 <script src="/static/globe_patch.js"></script>
 <script>
 lucide.createIcons();
