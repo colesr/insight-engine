@@ -16,11 +16,18 @@
   var pings = [];
   var starGroups = [];
   var atmosphereGlow = null;
-  var arcLines = [];
+  var arcLines = [];      // global similarity arcs
+  var pinnedArcs = [];    // country-focused arcs (when a dot is pinned)
   var pingTimerId = null;
   var pingIdx = 0;
   var startTime = Date.now();
   var raycastFrame = 0;
+  var globeRadius = 100;
+
+  // Time scrub state — index into timeSeries (0 = 30d ago, 29 = now)
+  var currentTimeIdx = 29;
+  // Category filter state
+  var activeCategories = {};
 
   function waitAndOverride() {
     window.openNewsGlobe = function() {
@@ -41,6 +48,8 @@
       // Reset interactive state so reopening is clean
       hoveredMesh = null;
       pinnedMesh = null;
+      closeDetailPanel();
+      hideFocusedArcs();
       var tt = document.getElementById('globeTooltip');
       if (tt) {
         tt.style.opacity = '0';
@@ -50,6 +59,17 @@
 
     window.initGlobe = function() {
       // no-op — we handle rendering in openNewsGlobe
+    };
+
+    // Expose interactive helpers used by inline onclick / oninput in index.html
+    window.toggleGlobeCat = toggleGlobeCat;
+    window.onGlobeTimeScrub = onGlobeTimeScrub;
+    window.closeGlobeDetail = function() {
+      closeDetailPanel();
+      if (pinnedMesh) {
+        pinnedMesh = null;
+        hideFocusedArcs();
+      }
     };
 
     console.log('globe_standalone: functions overridden');
@@ -72,14 +92,10 @@
     var W = container.clientWidth || window.innerWidth;
     var H = container.clientHeight || window.innerHeight;
 
-    // Scene
     scene = new THREE.Scene();
-
-    // Camera
     camera = new THREE.PerspectiveCamera(45, W / H, 1, 2000);
     camera.position.set(0, 0, 320);
 
-    // Renderer
     renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setSize(W, H);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -87,12 +103,10 @@
     container.appendChild(renderer.domElement);
     renderer.domElement.style.cursor = 'grab';
 
-    // Globe group
     globeGroup = new THREE.Group();
     scene.add(globeGroup);
     window.globeGroup = globeGroup;
 
-    // Lights
     var ambient = new THREE.AmbientLight(0x334466, 1.2);
     scene.add(ambient);
     var dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
@@ -102,8 +116,8 @@
     backLight.position.set(-5, -3, -5);
     scene.add(backLight);
 
-    // Base sphere
     var R = 100;
+    globeRadius = R;
     var baseGeo = new THREE.SphereGeometry(R, 64, 64);
     var baseMat = new THREE.MeshPhongMaterial({
       color: 0x0f1729,
@@ -116,7 +130,6 @@
     var baseSphere = new THREE.Mesh(baseGeo, baseMat);
     globeGroup.add(baseSphere);
 
-    // Atmosphere glow (kept reference for shimmer animation)
     var glowGeo = new THREE.SphereGeometry(R * 1.02, 64, 64);
     var glowMat = new THREE.MeshBasicMaterial({
       color: 0x22d3ee,
@@ -127,30 +140,18 @@
     atmosphereGlow = new THREE.Mesh(glowGeo, glowMat);
     globeGroup.add(atmosphereGlow);
 
-    // Grid lines (lat/lon)
     addGridLines(globeGroup, R);
-
-    // Sentiment data dots (also populates dotMeshes)
     addSentimentDots(globeGroup, R);
-
-    // Sentiment-similarity arcs (uses dotMeshes positions)
     addSentimentArcs(globeGroup, R);
-
-    // Background starfield (added to scene, not globeGroup — doesn't rotate with globe)
     addStarfield(scene);
-
-    // Load coastlines
     loadCoastlines(globeGroup, R);
 
-    // Update article count
     var countEl = document.getElementById('globeArticleCount');
     if (countEl) countEl.textContent = '847 articles analyzed';
 
-    // Raycaster for hover/click
     raycaster = new THREE.Raycaster();
-    mouseVec = new THREE.Vector2(2, 2); // start outside [-1,1] so no hover until user moves mouse
+    mouseVec = new THREE.Vector2(2, 2);
 
-    // Animation
     var rotSpeed = { v: 0.001 };
     function animate() {
       animId = requestAnimationFrame(animate);
@@ -158,19 +159,22 @@
 
       globeGroup.rotation.y += rotSpeed.v;
 
-      // Dot pulse + hover/pin scale
+      // Dot pulse + hover/pin scale + category dim
       for (var i = 0; i < dotMeshes.length; i++) {
         var d = dotMeshes[i];
         var ud = d.userData;
         var pulse = 1 + ud.pulseAmp * Math.sin(t * 1.6 + ud.pulsePhase);
         var hoverFactor = (d === hoveredMesh || d === pinnedMesh) ? 1.45 : 1;
-        var target = pulse * hoverFactor;
-        // smooth lerp toward target scale
+        // sizeMult lets the time scrubber change displayed dot size relative to geometry size
+        var sizeMult = ud.currentBaseSize / ud.geometryBaseSize;
+        var target = pulse * hoverFactor * sizeMult;
         d.scale.x += (target - d.scale.x) * 0.2;
         d.scale.y = d.scale.x;
         d.scale.z = d.scale.x;
         if (d.material) {
-          d.material.opacity = (d === hoveredMesh || d === pinnedMesh) ? 1.0 : 0.85;
+          var baseOp = (d === hoveredMesh || d === pinnedMesh) ? 1.0 : 0.85;
+          if (ud.catDimmed) baseOp *= 0.18;
+          d.material.opacity = baseOp;
         }
       }
 
@@ -179,19 +183,27 @@
         atmosphereGlow.material.opacity = 0.04 + 0.018 * Math.sin(t * 0.8);
       }
 
-      // Starfield twinkle (4 groups out of phase)
+      // Starfield twinkle
       for (var j = 0; j < starGroups.length; j++) {
         var phase = j * 1.7;
         starGroups[j].material.opacity = 0.45 + 0.3 * Math.sin(t * (0.4 + j * 0.15) + phase);
       }
 
-      // Sentiment arcs gentle pulse
+      // Global similarity arcs gentle pulse
       for (var a = 0; a < arcLines.length; a++) {
         var arc = arcLines[a];
-        arc.material.opacity = arc.userData.baseOpacity + 0.05 * Math.sin(t * 0.7 + arc.userData.phase);
+        if (arc.visible) {
+          arc.material.opacity = arc.userData.baseOpacity + 0.05 * Math.sin(t * 0.7 + arc.userData.phase);
+        }
       }
 
-      // Pings expand & fade
+      // Country-focused arcs pulse (when a dot is pinned)
+      for (var pa = 0; pa < pinnedArcs.length; pa++) {
+        var farc = pinnedArcs[pa];
+        farc.material.opacity = farc.userData.baseOpacity + 0.08 * Math.sin(t * 1.0 + farc.userData.phase);
+      }
+
+      // Pings
       for (var k = pings.length - 1; k >= 0; k--) {
         var p = pings[k];
         var age = t - p.startTime;
@@ -219,7 +231,7 @@
       renderer.render(scene, camera);
     }
 
-    // ---- Pointer interaction (mouse + touch) ----
+    // ---- Pointer interaction ----
     var isDragging = false, prevX = 0, prevY = 0, dragDelta = 0;
 
     function W_curr() { return container.clientWidth || window.innerWidth; }
@@ -232,7 +244,6 @@
 
     function updateHover() {
       if (!raycaster || !dotMeshes.length) return;
-      // Skip if mouse not yet over canvas
       if (mouseVec.x < -1 || mouseVec.x > 1 || mouseVec.y < -1 || mouseVec.y > 1) {
         if (hoveredMesh) {
           hoveredMesh = null;
@@ -281,9 +292,22 @@
         var hits = raycaster.intersectObjects(dotMeshes);
         if (hits.length > 0) {
           var hit = hits[0].object;
-          pinnedMesh = (pinnedMesh === hit) ? null : hit;
+          if (pinnedMesh === hit) {
+            // Toggle off
+            pinnedMesh = null;
+            closeDetailPanel();
+            hideFocusedArcs();
+          } else {
+            pinnedMesh = hit;
+            openDetailPanel(hit);
+            showFocusedArcs(hit, globeRadius);
+          }
         } else {
-          pinnedMesh = null;
+          if (pinnedMesh) {
+            pinnedMesh = null;
+            closeDetailPanel();
+            hideFocusedArcs();
+          }
         }
       }
     }
@@ -301,7 +325,6 @@
       onPointerMove(e.clientX - rect.left, e.clientY - rect.top);
     });
 
-    // Touch
     renderer.domElement.addEventListener('touchstart', function(e) {
       if (e.touches.length === 1) {
         var rect = renderer.domElement.getBoundingClientRect();
@@ -317,7 +340,6 @@
       onPointerMove(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
     });
 
-    // Resize
     function onResize() {
       var w = W_curr();
       var h = H_curr();
@@ -327,9 +349,7 @@
     }
     window.addEventListener('resize', onResize);
 
-    // Start sonar-like pings on top countries
     schedulePings(R);
-
     animate();
 
     console.log('globe_standalone: rendered with enhanced UI');
@@ -350,14 +370,11 @@
     var worldPos = new THREE.Vector3();
     target.getWorldPosition(worldPos);
 
-    // Visibility: dot must be on the side of the globe facing the camera
     var camDir = camera.position.clone().sub(globeGroup.position).normalize();
     var dotDir = worldPos.clone().sub(globeGroup.position).normalize();
     var facing = dotDir.dot(camDir);
 
     if (facing < -0.05) {
-      // Dot is on the back side of the globe: hide tooltip cleanly. Pin state persists,
-      // tooltip reappears when the dot rotates back to the front.
       tt.style.opacity = '0';
       return;
     }
@@ -378,29 +395,34 @@
     else tt.classList.remove('pinned');
 
     var d = target.userData;
+    var ts = d.timeSeries[currentTimeIdx] || { sentiment: d.sentiment, articles: d.articles };
+    var sent = ts.sentiment;
+    var arts = ts.articles;
+    var cls = sentimentClassification(sent);
+
     var country = document.getElementById('globeCountry');
     var sentEl = document.getElementById('globeSentiment');
     if (country) country.textContent = d.name;
     if (sentEl) {
-      var sign = d.sentiment >= 0 ? '+' : '';
-      var barW = Math.round(Math.abs(d.sentiment) * 100);
-      var pinIcon = (target === pinnedMesh)
+      var sign = sent >= 0 ? '+' : '';
+      var barW = Math.round(Math.abs(sent) * 100);
+      var pinTag = (target === pinnedMesh)
         ? '<span style="color:#22d3ee;margin-left:auto;font-size:0.75em">● pinned</span>'
         : '';
       sentEl.innerHTML =
         '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">' +
-          '<span style="color:' + d.labelColor + ';font-weight:600">' + d.label + '</span>' +
+          '<span style="color:' + cls.color + ';font-weight:600">' + cls.label + '</span>' +
           '<span style="color:#475569">·</span>' +
-          '<span style="color:#94a3b8;font-family:JetBrains Mono,monospace">' + sign + d.sentiment.toFixed(2) + '</span>' +
+          '<span style="color:#94a3b8;font-family:JetBrains Mono,monospace">' + sign + sent.toFixed(2) + '</span>' +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:6px;font-size:0.7rem">' +
-          '<span style="color:#94a3b8">' + d.articles + ' articles</span>' +
-          pinIcon +
+          '<span style="color:#94a3b8">' + arts + ' articles</span>' +
+          pinTag +
         '</div>' +
         '<div style="margin-top:6px;height:3px;border-radius:3px;background:#1e293b;overflow:hidden;width:140px;position:relative">' +
           '<div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:#334155"></div>' +
-          '<div style="height:100%;width:' + (barW/2) + '%;background:' + d.labelColor + ';transition:width .25s ease;' +
-                (d.sentiment >= 0 ? 'margin-left:50%' : 'margin-left:' + (50 - barW/2) + '%') +
+          '<div style="height:100%;width:' + (barW/2) + '%;background:' + cls.color + ';transition:width .25s ease;' +
+                (sent >= 0 ? 'margin-left:50%' : 'margin-left:' + (50 - barW/2) + '%') +
                 '"></div>' +
         '</div>';
     }
@@ -410,7 +432,6 @@
     var THREE = window.THREE;
     var lineMat = new THREE.LineBasicMaterial({ color: 0x1e3a5f, transparent: true, opacity: 0.25 });
 
-    // Latitude lines
     for (var lat = -60; lat <= 60; lat += 30) {
       var phi = (90 - lat) * Math.PI / 180;
       var pts = [];
@@ -426,7 +447,6 @@
       group.add(new THREE.Line(geo, lineMat));
     }
 
-    // Longitude lines
     for (var lon = 0; lon < 360; lon += 30) {
       var theta = (lon + 180) * Math.PI / 180;
       var pts2 = [];
@@ -451,10 +471,98 @@
     return        { label: 'Very Negative', color: '#dc2626' };
   }
 
+  // Deterministic pseudo-random in [0,1] from integer seed
+  function rng(seed) {
+    var x = Math.sin(seed * 9999.123) * 10000;
+    return x - Math.floor(x);
+  }
+
+  function synthesizeExtendedData(d, idx) {
+    // Categories: distribution biased by country index, sums to 1
+    var rawCats = [
+      rng(idx * 7 + 1) + 0.25,
+      rng(idx * 11 + 3) + 0.25,
+      rng(idx * 13 + 5) + 0.15,
+      rng(idx * 17 + 9) + 0.2
+    ];
+    // Bias: countries with strong negative sentiment get more "conflict" weight
+    if (d.sentiment < -0.4) rawCats[3] += 0.6;
+    var sum = rawCats.reduce(function(a, b) { return a + b; }, 0);
+    var categories = {
+      politics: rawCats[0] / sum,
+      economy: rawCats[1] / sum,
+      climate: rawCats[2] / sum,
+      conflict: rawCats[3] / sum
+    };
+
+    // 30-day time series ending at current sentiment
+    var timeSeries = [];
+    var startSent = d.sentiment * 0.3 + (rng(idx * 31) - 0.5) * 0.4;
+    var startArts = Math.max(2, Math.round(d.articles * (0.5 + rng(idx * 41) * 0.5)));
+    for (var t = 0; t < 30; t++) {
+      var progress = t / 29;
+      // Interpolate from start to current, with noise
+      var sent = startSent + (d.sentiment - startSent) * progress;
+      sent += (rng(idx * 101 + t * 13) - 0.5) * 0.18;
+      sent = Math.max(-1, Math.min(1, sent));
+      var arts = Math.round(startArts + (d.articles - startArts) * progress + (rng(idx * 201 + t * 17) - 0.5) * d.articles * 0.2);
+      arts = Math.max(1, arts);
+      timeSeries.push({ sentiment: sent, articles: arts });
+    }
+    // Pin the most recent entry to the canonical "now" values
+    timeSeries[29] = { sentiment: d.sentiment, articles: d.articles };
+
+    // Headlines (5 per country)
+    var positiveTemplates = [
+      'New trade pact set to boost {country} exports',
+      '{country} economy outperforms forecasts',
+      'Renewable energy project launched across {country}',
+      '{country} tech sector reports record growth',
+      'International praise for {country} climate policy',
+      'Tourism in {country} rebounds beyond pre-pandemic levels',
+      'Major investment announced in {country} infrastructure'
+    ];
+    var negativeTemplates = [
+      'Tensions rise in {country} amid escalating crisis',
+      '{country} faces backlash over recent policy shift',
+      'Economic concerns grow in {country}',
+      'Reports of unrest emerge from {country}',
+      'Trade dispute weighs on {country} markets',
+      '{country} hit by extreme weather events',
+      'Political deadlock continues in {country}'
+    ];
+    var neutralTemplates = [
+      '{country} holds talks with regional partners',
+      'Mixed signals from {country} central bank',
+      'Researchers analyze {country} labor trends',
+      '{country} reviews trade policy update',
+      'Cultural exchange program continues in {country}',
+      'Officials in {country} announce planning review'
+    ];
+    var sources = ['Reuters', 'AP', 'BBC', 'AFP', 'Bloomberg', 'WSJ', 'FT', 'Al Jazeera', 'NHK', 'DW'];
+
+    var headlines = [];
+    for (var h = 0; h < 5; h++) {
+      var sentVar = (rng(idx * 50 + h * 7) - 0.5) * 0.35;
+      var hSent = Math.max(-1, Math.min(1, d.sentiment + sentVar));
+      var pool;
+      if (hSent > 0.15) pool = positiveTemplates;
+      else if (hSent < -0.15) pool = negativeTemplates;
+      else pool = neutralTemplates;
+      var template = pool[Math.floor(rng(idx * 60 + h * 11) * pool.length)];
+      var title = template.replace('{country}', d.name);
+      var source = sources[Math.floor(rng(idx * 70 + h * 13) * sources.length)];
+      var minsAgo = Math.round(rng(idx * 80 + h * 17) * 480 + 5);
+      headlines.push({ title: title, source: source, minsAgo: minsAgo, sentiment: hSent });
+    }
+    headlines.sort(function(a, b) { return a.minsAgo - b.minsAgo; });
+
+    return { categories: categories, timeSeries: timeSeries, headlines: headlines };
+  }
+
   function addSentimentDots(group, R) {
     var THREE = window.THREE;
 
-    // Simulated news sentiment data
     var data = [
       { name: 'United States', lat: 38, lon: -97, sentiment: 0.35, articles: 142 },
       { name: 'United Kingdom', lat: 54, lon: -2, sentiment: 0.22, articles: 89 },
@@ -493,7 +601,7 @@
       { name: 'Colombia', lat: 4, lon: -72, sentiment: -0.10, articles: 13 },
     ];
 
-    data.forEach(function(d) {
+    data.forEach(function(d, idx) {
       var phi = (90 - d.lat) * Math.PI / 180;
       var theta = (d.lon + 180) * Math.PI / 180;
       var r = R + 1.5;
@@ -521,22 +629,28 @@
       });
       var dot = new THREE.Mesh(dotGeo, dotMat);
       dot.position.set(x, y, z);
+
+      var ext = synthesizeExtendedData(d, idx);
       dot.userData = {
         name: d.name,
         lat: d.lat,
         lon: d.lon,
         sentiment: d.sentiment,
         articles: d.articles,
-        baseSize: size,
+        geometryBaseSize: size,    // never changes — what the SphereGeometry was built with
+        currentBaseSize: size,     // mutates as time scrubber moves; drives sizeMult
         pulsePhase: Math.random() * Math.PI * 2,
         pulseAmp: 0.04 + (d.articles / 200) * 0.05,
         label: cls.label,
-        labelColor: cls.color
+        labelColor: cls.color,
+        categories: ext.categories,
+        timeSeries: ext.timeSeries,
+        headlines: ext.headlines,
+        catDimmed: false
       };
       group.add(dot);
       dotMeshes.push(dot);
 
-      // Static glow ring for very active countries (kept from original)
       if (d.articles > 40) {
         var ringGeo = new THREE.RingGeometry(size * 1.3, size * 1.8, 16);
         var ringMat = new THREE.MeshBasicMaterial({
@@ -552,13 +666,12 @@
       }
     });
 
-    console.log('globe_standalone: ' + data.length + ' sentiment dots added');
+    console.log('globe_standalone: ' + data.length + ' sentiment dots added (with headlines/timeseries/categories)');
   }
 
   function addSentimentArcs(group, R) {
     var THREE = window.THREE;
     if (!dotMeshes.length) return;
-    // Find pairs of countries with similar sentiment (same sign, small delta)
     var pairs = [];
     for (var i = 0; i < dotMeshes.length; i++) {
       for (var j = i + 1; j < dotMeshes.length; j++) {
@@ -575,32 +688,7 @@
     pairs = pairs.slice(0, 22);
 
     pairs.forEach(function(pair, idx) {
-      var p1 = pair.a.position.clone();
-      var p2 = pair.b.position.clone();
-      var mid = p1.clone().add(p2).multiplyScalar(0.5);
-      var midDist = mid.length();
-      if (midDist < 1) return;
-      // Push midpoint outward to make the arc bend outward from globe surface
-      mid.multiplyScalar((R * 1.55) / midDist);
-
-      var pts = [];
-      for (var k = 0; k <= 28; k++) {
-        var t = k / 28;
-        var inv = 1 - t;
-        pts.push(new THREE.Vector3(
-          inv * inv * p1.x + 2 * inv * t * mid.x + t * t * p2.x,
-          inv * inv * p1.y + 2 * inv * t * mid.y + t * t * p2.y,
-          inv * inv * p1.z + 2 * inv * t * mid.z + t * t * p2.z
-        ));
-      }
-      var geo = new THREE.BufferGeometry().setFromPoints(pts);
-      var color = pair.avgSent > 0 ? 0x22d3ee : 0xf43f5e;
-      var mat = new THREE.LineBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.13
-      });
-      var line = new THREE.Line(geo, mat);
+      var line = buildArc(pair.a.position, pair.b.position, R, pair.avgSent > 0 ? 0x22d3ee : 0xf43f5e, 0.13);
       line.userData = { baseOpacity: 0.13, phase: idx * 0.4 };
       group.add(line);
       arcLines.push(line);
@@ -609,9 +697,67 @@
     console.log('globe_standalone: ' + arcLines.length + ' sentiment arcs added');
   }
 
+  function buildArc(p1Vec, p2Vec, R, color, baseOpacity) {
+    var THREE = window.THREE;
+    var p1 = p1Vec.clone();
+    var p2 = p2Vec.clone();
+    var mid = p1.clone().add(p2).multiplyScalar(0.5);
+    var midDist = mid.length();
+    if (midDist < 1) midDist = 1;
+    mid.multiplyScalar((R * 1.55) / midDist);
+    var pts = [];
+    for (var k = 0; k <= 28; k++) {
+      var t = k / 28;
+      var inv = 1 - t;
+      pts.push(new THREE.Vector3(
+        inv * inv * p1.x + 2 * inv * t * mid.x + t * t * p2.x,
+        inv * inv * p1.y + 2 * inv * t * mid.y + t * t * p2.y,
+        inv * inv * p1.z + 2 * inv * t * mid.z + t * t * p2.z
+      ));
+    }
+    var geo = new THREE.BufferGeometry().setFromPoints(pts);
+    var mat = new THREE.LineBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: baseOpacity
+    });
+    return new THREE.Line(geo, mat);
+  }
+
+  function showFocusedArcs(dot, R) {
+    hideFocusedArcs();
+    // Hide the global similarity arcs
+    for (var a = 0; a < arcLines.length; a++) arcLines[a].visible = false;
+
+    var sent = dot.userData.sentiment;
+    var others = dotMeshes
+      .filter(function(m) { return m !== dot; })
+      .map(function(m) { return { mesh: m, delta: Math.abs(m.userData.sentiment - sent) }; })
+      .sort(function(a, b) { return a.delta - b.delta; })
+      .slice(0, 8);
+
+    var color = sent > 0.15 ? 0x22d3ee : (sent < -0.15 ? 0xf43f5e : 0x94a3b8);
+
+    others.forEach(function(o, idx) {
+      var line = buildArc(dot.position, o.mesh.position, R, color, 0.4);
+      line.userData = { baseOpacity: 0.4, phase: idx * 0.4 };
+      globeGroup.add(line);
+      pinnedArcs.push(line);
+    });
+  }
+
+  function hideFocusedArcs() {
+    for (var a = 0; a < arcLines.length; a++) arcLines[a].visible = true;
+    for (var i = 0; i < pinnedArcs.length; i++) {
+      globeGroup.remove(pinnedArcs[i]);
+      pinnedArcs[i].geometry.dispose();
+      pinnedArcs[i].material.dispose();
+    }
+    pinnedArcs = [];
+  }
+
   function addStarfield(parentScene) {
     var THREE = window.THREE;
-    // 4 separate point groups so each can twinkle out of phase with the others
     for (var g = 0; g < 4; g++) {
       var verts = [];
       var STARS_PER_GROUP = 60;
@@ -654,14 +800,13 @@
       spawnPing(top[pingIdx % top.length]);
       pingIdx++;
     }, 2400);
-    // Spawn one shortly after init so the feature is visible right away
     setTimeout(function() { spawnPing(top[0]); }, 700);
   }
 
   function spawnPing(dot) {
     if (!dot || !globeGroup) return;
     var THREE = window.THREE;
-    var size = dot.userData.baseSize;
+    var size = dot.userData.geometryBaseSize;
     var ringGeo = new THREE.RingGeometry(size * 1.2, size * 1.5, 28);
     var color = dot.material.color.clone();
     var ringMat = new THREE.MeshBasicMaterial({
@@ -678,6 +823,222 @@
       mesh: ring,
       startTime: (Date.now() - startTime) / 1000,
       duration: 1.6
+    });
+  }
+
+  // ---- Category filter ----
+  function toggleGlobeCat(cat) {
+    if (activeCategories[cat]) {
+      delete activeCategories[cat];
+    } else {
+      activeCategories[cat] = true;
+    }
+    // Update chip visual state
+    var chips = document.querySelectorAll('.globe-cat-chip');
+    chips.forEach(function(chip) {
+      if (activeCategories[chip.getAttribute('data-cat')]) chip.classList.add('active');
+      else chip.classList.remove('active');
+    });
+    applyCategoryFilter();
+  }
+
+  function applyCategoryFilter() {
+    var activeKeys = Object.keys(activeCategories);
+    for (var i = 0; i < dotMeshes.length; i++) {
+      var ud = dotMeshes[i].userData;
+      if (activeKeys.length === 0) {
+        ud.catDimmed = false;
+      } else {
+        var maxShare = 0;
+        for (var k = 0; k < activeKeys.length; k++) {
+          var share = ud.categories[activeKeys[k]] || 0;
+          if (share > maxShare) maxShare = share;
+        }
+        ud.catDimmed = maxShare < 0.22;
+      }
+    }
+  }
+
+  // ---- Time scrubber ----
+  function onGlobeTimeScrub(val) {
+    currentTimeIdx = parseInt(val, 10);
+    if (isNaN(currentTimeIdx)) currentTimeIdx = 29;
+    var labelEl = document.getElementById('globeTimeValue');
+    if (labelEl) {
+      var daysAgo = 29 - currentTimeIdx;
+      labelEl.textContent = daysAgo === 0 ? 'Now' : (daysAgo + 'd ago');
+    }
+    updateDotsForTime(currentTimeIdx);
+    if (pinnedMesh) populateDetailPanel(pinnedMesh);
+  }
+
+  function updateDotsForTime(idx) {
+    var THREE = window.THREE;
+    for (var i = 0; i < dotMeshes.length; i++) {
+      var d = dotMeshes[i];
+      var ts = d.userData.timeSeries[idx];
+      if (!ts) continue;
+      var color;
+      if (ts.sentiment > 0.15) {
+        color = new THREE.Color().setHSL(0.5, 0.8, 0.4 + ts.sentiment * 0.3);
+      } else if (ts.sentiment < -0.15) {
+        color = new THREE.Color().setHSL(0.95, 0.8, 0.4 + Math.abs(ts.sentiment) * 0.25);
+      } else {
+        color = new THREE.Color(0x94a3b8);
+      }
+      d.material.color = color;
+      d.userData.currentBaseSize = 1.0 + (ts.articles / 150) * 3.5;
+    }
+  }
+
+  // ---- Detail panel ----
+  function openDetailPanel(dot) {
+    var panel = document.getElementById('globeDetailPanel');
+    if (!panel || !dot) return;
+    panel.classList.add('open');
+    populateDetailPanel(dot);
+  }
+
+  function closeDetailPanel() {
+    var panel = document.getElementById('globeDetailPanel');
+    if (panel) panel.classList.remove('open');
+  }
+
+  function populateDetailPanel(dot) {
+    var d = dot.userData;
+    var ts = d.timeSeries[currentTimeIdx] || { sentiment: d.sentiment, articles: d.articles };
+    var sent = ts.sentiment;
+    var articles = ts.articles;
+    var cls = sentimentClassification(sent);
+
+    var country = document.getElementById('gdpCountry');
+    var label = document.getElementById('gdpLabel');
+    var sentBar = document.getElementById('gdpSentBar');
+    var sentVal = document.getElementById('gdpSentVal');
+    var artNow = document.getElementById('gdpArticlesNow');
+
+    if (country) country.textContent = d.name;
+    if (label) {
+      label.textContent = cls.label;
+      label.style.color = cls.color;
+    }
+    if (sentBar) {
+      var halfPct = Math.round(Math.abs(sent) * 100) / 2;
+      sentBar.style.background = cls.color;
+      sentBar.style.width = halfPct + '%';
+      sentBar.style.left = (sent >= 0 ? '50%' : (50 - halfPct) + '%');
+    }
+    if (sentVal) {
+      sentVal.textContent = (sent >= 0 ? '+' : '') + sent.toFixed(2);
+      sentVal.style.color = cls.color;
+    }
+    if (artNow) {
+      artNow.textContent = articles + ' articles';
+    }
+
+    renderTrendCanvas(d.timeSeries, currentTimeIdx);
+    renderCategoryMix(d.categories);
+    renderHeadlines(d.headlines);
+
+    if (window.lucide) {
+      try { lucide.createIcons(); } catch (e) {}
+    }
+  }
+
+  function renderTrendCanvas(timeSeries, currentIdx) {
+    var canvas = document.getElementById('gdpTrendCanvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var W = canvas.width;
+    var H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.strokeStyle = 'rgba(51, 65, 85, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, H / 2);
+    ctx.lineTo(W, H / 2);
+    ctx.stroke();
+
+    var maxAbs = 0.5;
+    for (var i = 0; i < timeSeries.length; i++) {
+      if (Math.abs(timeSeries[i].sentiment) > maxAbs) maxAbs = Math.abs(timeSeries[i].sentiment);
+    }
+
+    ctx.beginPath();
+    for (var i = 0; i < timeSeries.length; i++) {
+      var x = (i / (timeSeries.length - 1)) * W;
+      var y = H / 2 - (timeSeries[i].sentiment / maxAbs) * (H / 2 - 6);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#22d3ee';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Fill under curve
+    ctx.lineTo(W, H / 2);
+    ctx.lineTo(0, H / 2);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(34, 211, 238, 0.08)';
+    ctx.fill();
+
+    // Current marker
+    if (currentIdx >= 0 && currentIdx < timeSeries.length) {
+      var cx = (currentIdx / (timeSeries.length - 1)) * W;
+      var cy = H / 2 - (timeSeries[currentIdx].sentiment / maxAbs) * (H / 2 - 6);
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#22d3ee';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(15,23,42,0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  function renderCategoryMix(cats) {
+    var container = document.getElementById('gdpCategoryMix');
+    if (!container) return;
+    var order = [
+      { key: 'politics', label: 'Politics', color: '#22d3ee' },
+      { key: 'economy',  label: 'Economy',  color: '#10b981' },
+      { key: 'climate',  label: 'Climate',  color: '#84cc16' },
+      { key: 'conflict', label: 'Conflict', color: '#f43f5e' }
+    ];
+    container.innerHTML = order.map(function(c) {
+      var share = cats[c.key] || 0;
+      var pct = Math.round(share * 100);
+      return '<div class="globe-cat-bar">' +
+        '<span style="width:60px">' + c.label + '</span>' +
+        '<div class="globe-cat-bar-track"><div class="globe-cat-bar-fill" style="width:' + pct + '%;background:' + c.color + '"></div></div>' +
+        '<span style="width:34px;text-align:right;color:#94a3b8;font-family:JetBrains Mono,monospace">' + pct + '%</span>' +
+        '</div>';
+    }).join('');
+  }
+
+  function renderHeadlines(headlines) {
+    var container = document.getElementById('gdpHeadlines');
+    if (!container) return;
+    container.innerHTML = headlines.map(function(h) {
+      var ago;
+      if (h.minsAgo < 60) ago = h.minsAgo + 'm ago';
+      else if (h.minsAgo < 1440) ago = Math.round(h.minsAgo / 60) + 'h ago';
+      else ago = Math.round(h.minsAgo / 1440) + 'd ago';
+      var sentColor = h.sentiment > 0.15 ? '#22d3ee' : (h.sentiment < -0.15 ? '#f43f5e' : '#94a3b8');
+      var sign = h.sentiment >= 0 ? '+' : '';
+      return '<div class="globe-headline-item">' +
+        '<div class="globe-headline-title">' + escapeHtml(h.title) + '</div>' +
+        '<div class="globe-headline-meta">' +
+          '<span class="globe-headline-source">' + escapeHtml(h.source) + '</span>' +
+          '<span style="color:' + sentColor + '">' + sign + h.sentiment.toFixed(2) + ' · ' + ago + '</span>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function(c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
     });
   }
 
@@ -752,7 +1113,6 @@
   }
 
   // --- Boot sequence ---
-  // Run override immediately AND again after a delay (in case app_v30.js overwrites)
   waitAndOverride();
   setTimeout(waitAndOverride, 500);
   setTimeout(waitAndOverride, 1500);
