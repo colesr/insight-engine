@@ -37,7 +37,11 @@
       overlay.classList.add('open');
 
       if (!globeInitialized) {
-        setTimeout(renderGlobe, 100);
+        var statusEl = document.querySelector('#globeLoading .globe-status');
+        if (statusEl) statusEl.textContent = 'Fetching live coverage from GDELT…';
+        fetchGlobeData().then(function(data) {
+          setTimeout(function() { renderGlobe(data); }, 50);
+        });
       }
     };
 
@@ -106,12 +110,68 @@
     console.log('globe_standalone: functions overridden');
   }
 
-  function renderGlobe() {
+  function fetchGlobeData() {
+    return fetch('/api/news/globe', { cache: 'no-store' })
+      .then(function(resp) {
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        return resp.json();
+      })
+      .then(function(data) {
+        if (data && Array.isArray(data.countries) && data.countries.length) return data;
+        throw new Error('empty or malformed response');
+      })
+      .catch(function(e) {
+        console.warn('globe: live fetch failed, using offline fallback:', e && e.message);
+        return { countries: FALLBACK_COUNTRIES, total_articles: 847, live_count: 0, total_count: FALLBACK_COUNTRIES.length, source: 'offline' };
+      });
+  }
+
+  // Used only if /api/news/globe is unreachable (e.g. backend down).
+  // Sentiment values here are in the -1..+1 range; the normalization step below
+  // detects scale by absolute magnitude.
+  var FALLBACK_COUNTRIES = [
+    { name: 'United States', lat: 38, lon: -97, sentiment: 0.35, articles: 142 },
+    { name: 'United Kingdom', lat: 54, lon: -2, sentiment: 0.22, articles: 89 },
+    { name: 'France', lat: 46, lon: 2, sentiment: -0.15, articles: 67 },
+    { name: 'Germany', lat: 51, lon: 10, sentiment: 0.18, articles: 72 },
+    { name: 'Japan', lat: 36, lon: 138, sentiment: 0.12, articles: 54 },
+    { name: 'Australia', lat: -25, lon: 133, sentiment: 0.45, articles: 38 },
+    { name: 'Russia', lat: 60, lon: 100, sentiment: -0.62, articles: 48 },
+    { name: 'China', lat: 35, lon: 105, sentiment: -0.08, articles: 95 },
+    { name: 'India', lat: 20, lon: 77, sentiment: 0.28, articles: 63 },
+    { name: 'Brazil', lat: -14, lon: -51, sentiment: -0.22, articles: 41 },
+    { name: 'Canada', lat: 56, lon: -106, sentiment: 0.52, articles: 35 },
+    { name: 'Mexico', lat: 23, lon: -102, sentiment: -0.35, articles: 28 },
+    { name: 'South Korea', lat: 36, lon: 128, sentiment: 0.08, articles: 31 },
+    { name: 'Israel', lat: 31, lon: 35, sentiment: -0.72, articles: 52 },
+    { name: 'Ukraine', lat: 49, lon: 32, sentiment: -0.68, articles: 45 }
+  ];
+
+  function articleSize(articles) {
+    return 1.0 + Math.log10(Math.max(1, articles)) * 0.85;
+  }
+  function articlePulseAmp(articles) {
+    return 0.04 + Math.min(0.06, Math.log10(Math.max(1, articles)) * 0.013);
+  }
+
+  function parseSeendateMinsAgo(seendate) {
+    if (!seendate) return null;
+    var m = String(seendate).match(/(\d{4})(\d{2})(\d{2})T?(\d{2})?(\d{2})?(\d{2})?/);
+    if (!m) return null;
+    try {
+      var d = new Date(Date.UTC(+m[1], (+m[2]) - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)));
+      var mins = Math.round((Date.now() - d.getTime()) / 60000);
+      return mins > 0 ? mins : 1;
+    } catch (e) { return null; }
+  }
+
+  function renderGlobe(globeData) {
     var container = document.getElementById('globeContainer');
     if (!container || !window.THREE) {
       console.error('globe_standalone: container or THREE missing');
       return;
     }
+    globeData = globeData || { countries: FALLBACK_COUNTRIES };
 
     globeInitialized = true;
     var THREE = window.THREE;
@@ -172,13 +232,25 @@
     globeGroup.add(atmosphereGlow);
 
     addGridLines(globeGroup, R);
-    addSentimentDots(globeGroup, R);
+    addSentimentDots(globeGroup, R, globeData.countries);
     addSentimentArcs(globeGroup, R);
     addStarfield(scene);
     loadCoastlines(globeGroup, R);
 
     var countEl = document.getElementById('globeArticleCount');
-    if (countEl) countEl.textContent = '847 articles analyzed';
+    if (countEl) {
+      var total = globeData.total_articles || 0;
+      var live = globeData.live_count || 0;
+      var totalC = globeData.total_count || (globeData.countries || []).length;
+      var fmt = total.toLocaleString();
+      if (live > 0) {
+        countEl.innerHTML = '<span style="color:#22d3ee">●</span> ' + fmt + ' articles · ' + live + '/' + totalC + ' live from RSS';
+      } else if (globeData.source === 'offline') {
+        countEl.textContent = fmt + ' articles · offline mode';
+      } else {
+        countEl.textContent = fmt + ' articles · simulated';
+      }
+    }
 
     raycaster = new THREE.Raycaster();
     mouseVec = new THREE.Vector2(2, 2);
@@ -591,46 +663,19 @@
     return { categories: categories, timeSeries: timeSeries, headlines: headlines };
   }
 
-  function addSentimentDots(group, R) {
+  function addSentimentDots(group, R, countries) {
     var THREE = window.THREE;
-
-    var data = [
-      { name: 'United States', lat: 38, lon: -97, sentiment: 0.35, articles: 142 },
-      { name: 'United Kingdom', lat: 54, lon: -2, sentiment: 0.22, articles: 89 },
-      { name: 'France', lat: 46, lon: 2, sentiment: -0.15, articles: 67 },
-      { name: 'Germany', lat: 51, lon: 10, sentiment: 0.18, articles: 72 },
-      { name: 'Japan', lat: 36, lon: 138, sentiment: 0.12, articles: 54 },
-      { name: 'Australia', lat: -25, lon: 133, sentiment: 0.45, articles: 38 },
-      { name: 'Russia', lat: 60, lon: 100, sentiment: -0.62, articles: 48 },
-      { name: 'China', lat: 35, lon: 105, sentiment: -0.08, articles: 95 },
-      { name: 'India', lat: 20, lon: 77, sentiment: 0.28, articles: 63 },
-      { name: 'Brazil', lat: -14, lon: -51, sentiment: -0.22, articles: 41 },
-      { name: 'South Africa', lat: -30, lon: 25, sentiment: -0.18, articles: 22 },
-      { name: 'Canada', lat: 56, lon: -106, sentiment: 0.52, articles: 35 },
-      { name: 'Mexico', lat: 23, lon: -102, sentiment: -0.35, articles: 28 },
-      { name: 'South Korea', lat: 36, lon: 128, sentiment: 0.08, articles: 31 },
-      { name: 'Italy', lat: 42, lon: 12, sentiment: 0.05, articles: 34 },
-      { name: 'Spain', lat: 40, lon: -4, sentiment: 0.15, articles: 29 },
-      { name: 'Nigeria', lat: 10, lon: 8, sentiment: -0.42, articles: 19 },
-      { name: 'Egypt', lat: 27, lon: 30, sentiment: -0.55, articles: 24 },
-      { name: 'Turkey', lat: 39, lon: 35, sentiment: -0.38, articles: 26 },
-      { name: 'Saudi Arabia', lat: 24, lon: 45, sentiment: 0.32, articles: 18 },
-      { name: 'UAE', lat: 24, lon: 54, sentiment: 0.58, articles: 15 },
-      { name: 'Israel', lat: 31, lon: 35, sentiment: -0.72, articles: 52 },
-      { name: 'Ukraine', lat: 49, lon: 32, sentiment: -0.68, articles: 45 },
-      { name: 'Poland', lat: 52, lon: 20, sentiment: 0.12, articles: 14 },
-      { name: 'Sweden', lat: 62, lon: 15, sentiment: 0.62, articles: 11 },
-      { name: 'Norway', lat: 60, lon: 8, sentiment: 0.71, articles: 9 },
-      { name: 'Argentina', lat: -34, lon: -64, sentiment: -0.28, articles: 16 },
-      { name: 'Indonesia', lat: -5, lon: 120, sentiment: 0.10, articles: 21 },
-      { name: 'Thailand', lat: 15, lon: 100, sentiment: 0.25, articles: 17 },
-      { name: 'Vietnam', lat: 16, lon: 108, sentiment: 0.30, articles: 12 },
-      { name: 'Philippines', lat: 13, lon: 122, sentiment: -0.12, articles: 14 },
-      { name: 'Pakistan', lat: 30, lon: 70, sentiment: -0.48, articles: 20 },
-      { name: 'Iran', lat: 33, lon: 53, sentiment: -0.65, articles: 27 },
-      { name: 'Kenya', lat: -1, lon: 38, sentiment: 0.08, articles: 10 },
-      { name: 'Colombia', lat: 4, lon: -72, sentiment: -0.10, articles: 13 },
-    ];
+    var src = (countries && countries.length) ? countries : FALLBACK_COUNTRIES;
+    // Normalize sentiment to -1..+1 (backend uses -80..+80, fallback uses -1..+1)
+    var maxArticles = 1;
+    var data = src.map(function(c) {
+      var s = Number(c.sentiment) || 0;
+      if (Math.abs(s) > 1.5) s = s / 80;
+      s = Math.max(-1, Math.min(1, s));
+      var arts = Math.max(1, Number(c.articles) || 0);
+      if (arts > maxArticles) maxArticles = arts;
+      return Object.assign({}, c, { sentiment: s, articles: arts });
+    });
 
     data.forEach(function(d, idx) {
       var phi = (90 - d.lat) * Math.PI / 180;
@@ -650,7 +695,7 @@
         color = new THREE.Color(0x94a3b8);
       }
 
-      var size = 1.0 + (d.articles / 150) * 3.5;
+      var size = articleSize(d.articles);
 
       var dotGeo = new THREE.SphereGeometry(size, 12, 12);
       var dotMat = new THREE.MeshBasicMaterial({
@@ -661,28 +706,47 @@
       var dot = new THREE.Mesh(dotGeo, dotMat);
       dot.position.set(x, y, z);
 
+      // Synthesize categories + timeSeries (still derived). Use real GDELT
+      // headlines if the backend provided them; otherwise synthesize.
       var ext = synthesizeExtendedData(d, idx);
+      var hasLive = Array.isArray(d.headlines) && d.headlines.length > 0;
+      var headlines = ext.headlines;
+      if (hasLive) {
+        headlines = d.headlines.map(function(h) {
+          var mins = parseSeendateMinsAgo(h.seendate);
+          if (mins == null) mins = Math.round(Math.random() * 240 + 5);
+          var t = Number(h.tone) || 0;
+          return {
+            title: String(h.title || '(untitled)').slice(0, 160),
+            source: String(h.source || 'unknown'),
+            minsAgo: mins,
+            sentiment: Math.max(-1, Math.min(1, t / 10)),
+            url: h.url || ''
+          };
+        }).slice(0, 5);
+      }
       dot.userData = {
         name: d.name,
         lat: d.lat,
         lon: d.lon,
         sentiment: d.sentiment,
         articles: d.articles,
-        geometryBaseSize: size,    // never changes — what the SphereGeometry was built with
-        currentBaseSize: size,     // mutates as time scrubber moves; drives sizeMult
+        geometryBaseSize: size,
+        currentBaseSize: size,
         pulsePhase: Math.random() * Math.PI * 2,
-        pulseAmp: 0.04 + (d.articles / 200) * 0.05,
+        pulseAmp: articlePulseAmp(d.articles),
         label: cls.label,
         labelColor: cls.color,
         categories: ext.categories,
         timeSeries: ext.timeSeries,
-        headlines: ext.headlines,
+        headlines: headlines,
+        liveHeadlines: hasLive,
         catDimmed: false
       };
       group.add(dot);
       dotMeshes.push(dot);
 
-      if (d.articles > 40) {
+      if (d.articles > maxArticles * 0.4) {
         var ringGeo = new THREE.RingGeometry(size * 1.3, size * 1.8, 16);
         var ringMat = new THREE.MeshBasicMaterial({
           color: color,
@@ -697,7 +761,8 @@
       }
     });
 
-    console.log('globe_standalone: ' + data.length + ' sentiment dots added (with headlines/timeseries/categories)');
+    var liveCount = data.filter(function(d) { return Array.isArray(d.headlines) && d.headlines.length; }).length;
+    console.log('globe_standalone: ' + data.length + ' sentiment dots added (' + liveCount + ' with live headlines)');
   }
 
   function addSentimentArcs(group, R) {

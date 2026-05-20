@@ -4,3 +4,5 @@ requests>=2.31.0
 aiohttp>=3.9.0
 pandas>=2.1.0
 numpy>=1.26.0
+feedparser>=6.0
+vaderSentiment>=3.3

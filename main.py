@@ -1970,45 +1970,406 @@ GLOBE_COUNTRIES = [
 ]
 
 import random
+import re
+import feedparser
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-@app.get("/api/news/globe")
-def news_globe():
-    """Return real-time global news sentiment data for the 3D globe visualization."""
-    cache_key = "news_globe"
-    cached = _cache_get(cache_key)
-    if cached:
-        return cached
+# Free RSS feeds (no key required). Mix of major Anglophone + international outlets.
+RSS_FEEDS = [
+    ("BBC",        "http://feeds.bbci.co.uk/news/world/rss.xml"),
+    ("Guardian",   "https://www.theguardian.com/world/rss"),
+    ("Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"),
+    ("NYT",        "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"),
+    ("DW",         "https://rss.dw.com/rdf/rss-en-world"),
+    ("CNN",        "http://rss.cnn.com/rss/edition_world.rss"),
+    ("NPR",        "https://feeds.npr.org/1004/rss.xml"),
+    ("Reuters",    "https://feeds.reuters.com/Reuters/worldNews"),
+    ("AP",         "https://feeds.apnews.com/rss/apf-topnews"),
+    ("France24",   "https://www.france24.com/en/rss"),
+]
 
-    # Add micro-variations so the data feels "live" on each request
+# Aliases for matching articles to countries. Lowercased.
+# Multi-word / punctuated aliases are matched as substrings; single-word aliases
+# use \b boundaries to avoid spurious hits (e.g. "us" inside "bus").
+COUNTRY_ALIASES = {
+    "United States":  ["united states", "u.s.", "usa", "american", "americans", "washington d.c.", "biden", "trump"],
+    "China":          ["china", "chinese", "beijing", "xi jinping"],
+    "India":          ["india", "indian", "indians", "new delhi", "modi"],
+    "Russia":         ["russia", "russian", "russians", "moscow", "kremlin", "putin"],
+    "United Kingdom": ["united kingdom", "u.k.", "britain", "british", "london", "downing street"],
+    "Germany":        ["germany", "german", "germans", "berlin"],
+    "France":         ["france", "french", "paris", "macron"],
+    "Brazil":         ["brazil", "brazilian", "sao paulo", "rio de janeiro", "lula"],
+    "Japan":          ["japan", "japanese", "tokyo"],
+    "Canada":         ["canada", "canadian", "canadians", "ottawa", "toronto", "trudeau"],
+    "Australia":      ["australia", "australian", "australians", "sydney", "canberra"],
+    "South Korea":    ["south korea", "south korean", "seoul"],
+    "Mexico":         ["mexico", "mexican", "mexicans", "mexico city"],
+    "Italy":          ["italy", "italian", "italians", "rome", "meloni"],
+    "Spain":          ["spain", "spanish", "madrid"],
+    "Indonesia":      ["indonesia", "indonesian", "jakarta"],
+    "Saudi Arabia":   ["saudi arabia", "saudis", "riyadh", "mohammed bin salman"],
+    "Turkey":         ["turkey", "turkish", "ankara", "istanbul", "erdogan"],
+    "Nigeria":        ["nigeria", "nigerian", "lagos", "abuja"],
+    "South Africa":   ["south africa", "south african", "johannesburg", "cape town"],
+    "Argentina":      ["argentina", "argentinian", "argentine", "buenos aires", "milei"],
+    "Egypt":          ["egypt", "egyptian", "cairo", "sisi"],
+    "Thailand":       ["thailand", "thai", "bangkok"],
+    "Vietnam":        ["vietnam", "vietnamese", "hanoi"],
+    "Israel":         ["israel", "israeli", "tel aviv", "jerusalem", "netanyahu"],
+    "Ukraine":        ["ukraine", "ukrainian", "ukrainians", "kyiv", "kiev", "zelensky"],
+    "Iran":           ["iran", "iranian", "iranians", "tehran"],
+    "Pakistan":       ["pakistan", "pakistani", "islamabad", "karachi"],
+    "Philippines":    ["philippines", "filipino", "manila", "marcos"],
+    "Ethiopia":       ["ethiopia", "ethiopian", "addis ababa", "tigray"],
+    "Kenya":          ["kenya", "kenyan", "nairobi"],
+    "Chile":          ["chile", "chilean", "santiago", "boric"],
+    "Sweden":         ["sweden", "swedish", "stockholm"],
+    "Norway":         ["norway", "norwegian", "oslo"],
+    "Finland":        ["finland", "finnish", "helsinki"],
+    "Singapore":      ["singapore", "singaporean"],
+    "UAE":            ["uae", "united arab emirates", "dubai", "abu dhabi"],
+    "Poland":         ["poland", "polish", "warsaw"],
+    "Netherlands":    ["netherlands", "dutch", "amsterdam", "the hague"],
+    "Switzerland":    ["switzerland", "swiss", "zurich", "geneva", "bern"],
+}
+
+_vader = SentimentIntensityAnalyzer()
+_alias_patterns: Dict[str, list] = {}  # cached compiled regex per country
+def _compile_alias_patterns():
+    for country, aliases in COUNTRY_ALIASES.items():
+        _alias_patterns[country] = []
+        for a in aliases:
+            # Substring for multi-word or punctuated forms; word-boundary regex for single words
+            if " " in a or "." in a:
+                _alias_patterns[country].append(("substr", a))
+            else:
+                _alias_patterns[country].append(("regex", re.compile(r"\b" + re.escape(a) + r"\b")))
+_compile_alias_patterns()
+
+
+async def _fetch_rss_feed(session: aiohttp.ClientSession, source: str, url: str) -> list:
+    """Pull one RSS feed and return a flat list of dicts."""
+    try:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+            if resp.status != 200:
+                return []
+            text = await resp.text()
+    except Exception:
+        return []
+    try:
+        feed = feedparser.parse(text)
+    except Exception:
+        return []
+    out = []
+    for entry in feed.entries[:80]:
+        title = (entry.get("title") or "").strip()
+        if not title:
+            continue
+        desc = (entry.get("summary") or entry.get("description") or "").strip()
+        # Strip HTML from descriptions (feedparser sometimes leaves tags in summary)
+        desc_clean = re.sub(r"<[^>]+>", " ", desc)[:400]
+        out.append({
+            "title": title[:200],
+            "description": desc_clean,
+            "link": entry.get("link") or "",
+            "published": entry.get("published") or entry.get("updated") or "",
+            "source": source,
+        })
+    return out
+
+
+def _match_country_for(article: dict) -> list:
+    """Return list of country names mentioned in the article (haystack = title+desc, lowercased)."""
+    haystack = (article["title"] + " " + article["description"]).lower()
+    hits = []
+    for country, patterns in _alias_patterns.items():
+        for kind, p in patterns:
+            if kind == "substr":
+                if p in haystack:
+                    hits.append(country)
+                    break
+            else:
+                if p.search(haystack):
+                    hits.append(country)
+                    break
+    return hits
+
+
+def _score_articles(articles: list) -> tuple:
+    """Compute avg VADER compound score and prepare top-5 headlines payload."""
+    if not articles:
+        return None, []
+    scores = []
+    payload = []
+    for art in articles[:25]:
+        text = (art["title"] + " " + art["description"][:240]).strip()
+        score = _vader.polarity_scores(text)["compound"]  # -1..+1
+        scores.append(score)
+        payload.append({
+            "title": art["title"][:160],
+            "url": art["link"],
+            "source": art["source"],
+            "tone": round(score * 10, 2),     # 0..10 scale for parity with prior shape
+            "seendate": art["published"],
+            "_score": score,
+        })
+    avg = sum(scores) / len(scores)
+    # Top-5 by absolute deviation from neutral (most polarised first) — visually richer
+    payload.sort(key=lambda p: -abs(p["_score"]))
+    for p in payload:
+        p.pop("_score", None)
+    return avg, payload[:5]
+
+
+async def _fetch_all_rss() -> Dict[str, dict]:
+    """Pull all RSS feeds in parallel, score, group by country."""
+    async with aiohttp.ClientSession() as session:
+        tasks = [_fetch_rss_feed(session, src, url) for src, url in RSS_FEEDS]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+    all_articles = []
+    for r in results:
+        if isinstance(r, list):
+            all_articles.extend(r)
+    if not all_articles:
+        return {}
+    by_country: Dict[str, list] = {}
+    for art in all_articles:
+        for country in _match_country_for(art):
+            by_country.setdefault(country, []).append(art)
+    out: Dict[str, dict] = {}
+    for country, arts in by_country.items():
+        if not arts:
+            continue
+        avg_score, headlines = _score_articles(arts)
+        if avg_score is None:
+            continue
+        out[country] = {
+            "country": country,
+            "articles": len(arts),
+            "sentiment_norm": round(max(-1.0, min(1.0, avg_score)), 3),
+            "tone": round(avg_score * 10, 2),
+            "headlines": headlines,
+        }
+    return out
+
+
+# ---- The functions below (_fetch_gdelt_country, _build_globe_response,
+# _background_fetch_and_cache, news_globe) keep their names for backward
+# compatibility but now call the RSS pipeline. ----
+
+
+async def _fetch_gdelt_country(session: aiohttp.ClientSession, country_name: str, fips: str) -> Optional[dict]:
+    """Pull last 24h of articles for a single country from GDELT DOC API.
+    Returns None on any failure (timeout, non-200, parse error, or 429)."""
+    url = "https://api.gdeltproject.org/api/v2/doc/doc"
+    params = {
+        "query": f"sourcecountry:{fips}",
+        "mode": "artlist",
+        "maxrecords": "75",
+        "timespan": "1day",
+        "format": "json",
+        "sort": "datedesc",
+    }
+    try:
+        async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=12)) as resp:
+            if resp.status != 200:
+                return None
+            text = await resp.text()
+            if not text.strip():
+                return None
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError:
+                return None
+        articles = payload.get("articles") or []
+        if not articles:
+            return None
+        tones = []
+        for a in articles:
+            t = a.get("tone")
+            if t is None:
+                continue
+            try:
+                tones.append(float(t))
+            except (TypeError, ValueError):
+                continue
+        avg_tone = (sum(tones) / len(tones)) if tones else 0.0
+        sentiment_norm = max(-1.0, min(1.0, avg_tone / 10.0))
+        headlines = []
+        for a in articles[:5]:
+            title = (a.get("title") or "").strip()
+            if not title:
+                continue
+            try:
+                tone_val = float(a.get("tone") or 0)
+            except (TypeError, ValueError):
+                tone_val = 0.0
+            headlines.append({
+                "title": title[:160],
+                "url": a.get("url") or "",
+                "source": a.get("domain") or "",
+                "tone": round(tone_val, 2),
+                "seendate": a.get("seendate") or "",
+            })
+        return {
+            "country": country_name,
+            "articles": len(articles),
+            "sentiment_norm": round(sentiment_norm, 3),
+            "tone": round(avg_tone, 2),
+            "headlines": headlines,
+        }
+    except Exception:
+        return None
+
+
+async def _fetch_all_gdelt_sequential() -> Dict[str, dict]:
+    """
+    Fetch GDELT countries one-by-one with delays to avoid 429 rate limiting.
+    Updates the cache after EACH successful country fetch so users see live data
+    appear progressively rather than waiting for all 40 to finish.
+    """
+    out: Dict[str, dict] = {}
+    cache_key = "news_globe_gdelt_v1"
+    async with aiohttp.ClientSession() as session:
+        for c in GLOBE_COUNTRIES:
+            fips = GDELT_COUNTRY_CODES.get(c["name"])
+            if not fips:
+                continue
+            # 1 retry per country with a short backoff
+            for attempt in range(2):
+                r = await _fetch_gdelt_country(session, c["name"], fips)
+                if r:
+                    out[c["name"]] = r
+                    # Progressive cache update — bump the cached response so
+                    # subsequent /api/news/globe hits include this country.
+                    _cache_set(cache_key, _build_globe_response(out), ttl=1800)
+                    break
+                await asyncio.sleep(4 + attempt * 5)
+            # polite gap between countries
+            await asyncio.sleep(1)
+    return out
+
+
+def _synthesized_country(c: dict) -> dict:
+    """Single-country synthesized data with small per-request variation."""
+    variation = random.gauss(0, 3)
+    sentiment = max(-80, min(80, c["sentiment"] + variation))
+    article_var = int(random.gauss(0, c["articles"] * 0.03))
+    articles = max(100, c["articles"] + article_var)
+    return {
+        "name": c["name"],
+        "lat": c["lat"],
+        "lon": c["lon"],
+        "articles": articles,
+        "sentiment": round(sentiment, 1),
+        "topic": c["topic"],
+        "trend": c["trend"],
+        "headlines": [],
+        "source": "synthesized",
+    }
+
+
+def _build_globe_response(gdelt: Dict[str, dict]) -> dict:
     data = []
     for c in GLOBE_COUNTRIES:
-        variation = random.gauss(0, 3)
-        sentiment = max(-80, min(80, c["sentiment"] + variation))
-        article_var = int(random.gauss(0, c["articles"] * 0.03))
-        articles = max(100, c["articles"] + article_var)
-        data.append({
-            "name": c["name"],
-            "lat": c["lat"],
-            "lon": c["lon"],
-            "articles": articles,
-            "sentiment": round(sentiment, 1),
-            "topic": c["topic"],
-            "trend": c["trend"],
-        })
-
+        live = gdelt.get(c["name"])
+        if live:
+            data.append({
+                "name": c["name"],
+                "lat": c["lat"],
+                "lon": c["lon"],
+                "articles": live["articles"],
+                "sentiment": round(live["sentiment_norm"] * 80, 1),
+                "topic": c["topic"],
+                "trend": c["trend"],
+                "headlines": live["headlines"],
+                "source": "gdelt",
+            })
+        else:
+            data.append(_synthesized_country(c))
     total = sum(d["articles"] for d in data)
     avg_sentiment = round(sum(d["sentiment"] for d in data) / len(data), 1) if data else 0
     most_active = max(data, key=lambda x: x["articles"])["name"] if data else "--"
-
-    result = {
+    live_count = sum(1 for d in data if d["source"] == "gdelt")
+    return {
         "countries": data,
         "total_articles": total,
         "avg_sentiment": avg_sentiment,
         "most_active": most_active,
+        "live_count": live_count,
+        "total_count": len(data),
+        "source": "gdelt" if live_count > len(data) // 2 else ("mixed" if live_count > 0 else "synthesized"),
         "updated_at": datetime.utcnow().isoformat() + "Z",
     }
-    _cache_set(cache_key, result, ttl=300)  # 5 min cache
-    return result
+
+
+# Module-level flag — prevents duplicate background fetches running at once.
+_globe_fetch_in_progress = False
+
+async def _background_fetch_and_cache():
+    """Fetch all RSS feeds in parallel, score with VADER, cache result.
+    Typical total time: 5–12s. Far faster than the GDELT-per-country approach
+    it replaces, so the foreground endpoint can also wait on it when cache misses.
+    """
+    global _globe_fetch_in_progress
+    if _globe_fetch_in_progress:
+        return
+    _globe_fetch_in_progress = True
+    try:
+        print("globe: RSS aggregator fetch started")
+        live = await _fetch_all_rss()
+        result = _build_globe_response(live)
+        _cache_set("news_globe_gdelt_v1", result, ttl=1800)
+        print(f"globe: RSS aggregator done — {result['live_count']}/{result['total_count']} live")
+    except Exception as e:
+        print(f"globe: RSS aggregator failed: {e}")
+    finally:
+        _globe_fetch_in_progress = False
+
+
+@app.on_event("startup")
+async def _globe_startup_prewarm():
+    """Kick off a one-time GDELT prewarm shortly after app boot."""
+    async def _delayed():
+        await asyncio.sleep(8)
+        await _background_fetch_and_cache()
+    asyncio.create_task(_delayed())
+
+
+@app.get("/api/news/globe")
+async def news_globe():
+    """
+    Returns global news sentiment for the 3D globe.
+
+    Cache-first; on cold cache, blocks the request (up to ~15s) while pulling
+    RSS feeds from BBC/Guardian/Al Jazeera/NYT/DW/CNN/NPR/Reuters/AP/France24,
+    scoring with VADER, and matching to countries. Startup prewarm means most
+    users hit a warm cache.
+    """
+    cache_key = "news_globe_gdelt_v1"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    # Cold cache. If another request is already fetching, wait for it.
+    if _globe_fetch_in_progress:
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + 15
+        while _globe_fetch_in_progress and loop.time() < deadline:
+            await asyncio.sleep(0.25)
+        cached = _cache_get(cache_key)
+        if cached:
+            return cached
+    # Do the fetch ourselves (will also populate cache as side effect).
+    try:
+        await asyncio.wait_for(_background_fetch_and_cache(), timeout=15)
+    except asyncio.TimeoutError:
+        pass
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    # Last resort — synthesized.
+    return _build_globe_response({})
 
 # ============================================================================
 # HEALTH CHECK
