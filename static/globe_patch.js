@@ -72,6 +72,37 @@
       }
     };
 
+    window.shareCurrentGlobeCountry = function() {
+      if (!pinnedMesh) return;
+      var d = pinnedMesh.userData;
+      var ts = (d.timeSeries && d.timeSeries[currentTimeIdx]) || { sentiment: d.sentiment, articles: d.articles };
+      var cls = sentimentClassification(ts.sentiment);
+      var topCats = Object.keys(d.categories || {})
+        .map(function(k) { return { k: k, v: d.categories[k] }; })
+        .sort(function(a, b) { return b.v - a.v; })
+        .slice(0, 2)
+        .map(function(p) { return p.k + ' ' + Math.round(p.v * 100) + '%'; })
+        .join(', ');
+      var topHeadline = (d.headlines && d.headlines[0]) ? d.headlines[0].title : '';
+      var sign = ts.sentiment >= 0 ? '+' : '';
+      var body = d.name + ': ' + cls.label.toLowerCase() + ' coverage (' + sign + ts.sentiment.toFixed(2) +
+        '), ' + ts.articles + ' articles. Top mix: ' + topCats + '.' +
+        (topHeadline ? ' Latest: "' + topHeadline + '"' : '');
+      var slug = d.name.toLowerCase().replace(/\s+/g, '-');
+      var payload = {
+        sourceType: 'globe',
+        title: d.name + ' — Global Trends',
+        body: body,
+        tags: ['globe', 'sentiment', slug],
+        color: cls.color
+      };
+      if (typeof window.shareToMapping === 'function') {
+        window.shareToMapping(payload);
+      } else {
+        console.warn('shareToMapping unavailable');
+      }
+    };
+
     console.log('globe_standalone: functions overridden');
   }
 

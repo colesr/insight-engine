@@ -1019,6 +1019,45 @@ function updateExplorer() {
   generateNarrative(v, corrs);
 }
 
+// === SHARE-TO-MAPPING bridges for context-bound buttons ===
+window.shareCurrentVariable = function() {
+  if (!selectedVar) return;
+  const v = variableDefs.find(d => d.key === selectedVar);
+  if (!v) return;
+  const values = vals(selectedVar);
+  const mean = M.mean(values), std = M.std(values);
+  const corrs = getCorrelations(selectedVar);
+  const top = corrs.filter(c => Math.abs(c.r) >= 0.3).slice(0, 3).map(c => c.name + ' (r=' + (c.r >= 0 ? '+' : '') + c.r.toFixed(2) + ')');
+  const body = v.name + ' (' + v.category + '): mean ' + mean.toFixed(1) + ' ' + (v.unit || '') + ', std ' + std.toFixed(2) + '.' + (top.length ? ' Top correlations: ' + top.join(', ') + '.' : '');
+  if (typeof window.shareToMapping === 'function') {
+    window.shareToMapping({
+      sourceType: 'variable',
+      title: v.name,
+      body: body,
+      tags: ['variable', v.category.toLowerCase().replace(/\s+/g,'-'), v.key],
+      color: '#06b6d4'
+    });
+  }
+};
+
+window.shareCurrentNarrative = function() {
+  if (!selectedVar) return;
+  const v = variableDefs.find(d => d.key === selectedVar);
+  if (!v) return;
+  const textEl = document.getElementById('narrativeText');
+  const text = textEl ? textEl.textContent.trim() : '';
+  if (!text) return;
+  if (typeof window.shareToMapping === 'function') {
+    window.shareToMapping({
+      sourceType: 'narrative',
+      title: v.name + ' — Narrative',
+      body: text,
+      tags: ['narrative', v.category.toLowerCase().replace(/\s+/g,'-'), v.key],
+      color: '#06b6d4'
+    });
+  }
+};
+
 // === NARRATIVE ===
 function generateNarrative(v, corrs) {
   const panel = document.getElementById('narrativePanel');
@@ -1058,11 +1097,25 @@ function renderRiskOpportunity(v, corrs) {
   let html = '';
   if (risks.length > 0) {
     const r = risks[0];
-    html += `<div class="glass-risk rounded-xl p-4 flex items-start gap-3 fade-in"><div class="w-10 h-10 rounded-lg bg-red-500/15 flex items-center justify-center flex-shrink-0"><i data-lucide="shield-alert" class="w-5 h-5 text-red-400"></i></div><div><div class="text-xs text-red-400 font-semibold mb-0.5">RISK FACTOR</div><div class="text-sm font-semibold text-white">${v.name} ↔ ${r.name}</div><div class="text-xs text-slate-400 mt-1">Higher ${v.name.toLowerCase()} linked to lower ${r.name.toLowerCase()}.</div></div></div>`;
+    const payload = encodeURIComponent(JSON.stringify({
+      sourceType: 'risk',
+      title: 'Risk: ' + v.name + ' ↔ ' + r.name,
+      body: 'Higher ' + v.name.toLowerCase() + ' linked to lower ' + r.name.toLowerCase() + ' (r=' + r.r.toFixed(2) + ').',
+      tags: ['risk', v.category.toLowerCase().replace(/\s+/g,'-'), r.category.toLowerCase().replace(/\s+/g,'-')],
+      color: '#f43f5e'
+    }));
+    html += `<div class="glass-risk rounded-xl p-4 flex items-start gap-3 fade-in relative"><div class="w-10 h-10 rounded-lg bg-red-500/15 flex items-center justify-center flex-shrink-0"><i data-lucide="shield-alert" class="w-5 h-5 text-red-400"></i></div><div class="flex-1"><div class="text-xs text-red-400 font-semibold mb-0.5">RISK FACTOR</div><div class="text-sm font-semibold text-white">${v.name} ↔ ${r.name}</div><div class="text-xs text-slate-400 mt-1">Higher ${v.name.toLowerCase()} linked to lower ${r.name.toLowerCase()}.</div></div><button onclick="shareToMappingURI('${payload}')" class="share-to-mapping-btn flex-shrink-0" title="Share to Mapping"><i data-lucide="share-2" class="w-3 h-3"></i></button></div>`;
   }
   if (opps.length > 0) {
     const o = opps[0];
-    html += `<div class="glass-success rounded-xl p-4 flex items-start gap-3 fade-in"><div class="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center flex-shrink-0"><i data-lucide="trending-up" class="w-5 h-5 text-emerald-400"></i></div><div><div class="text-xs text-emerald-400 font-semibold mb-0.5">OPPORTUNITY</div><div class="text-sm font-semibold text-white">${v.name} ↔ ${o.name}</div><div class="text-xs text-slate-400 mt-1">Strong positive link.</div></div></div>`;
+    const payload = encodeURIComponent(JSON.stringify({
+      sourceType: 'opportunity',
+      title: 'Opportunity: ' + v.name + ' ↔ ' + o.name,
+      body: 'Strong positive link between ' + v.name.toLowerCase() + ' and ' + o.name.toLowerCase() + ' (r=' + o.r.toFixed(2) + '). Coordinated investment may yield dual returns.',
+      tags: ['opportunity', v.category.toLowerCase().replace(/\s+/g,'-'), o.category.toLowerCase().replace(/\s+/g,'-')],
+      color: '#10b981'
+    }));
+    html += `<div class="glass-success rounded-xl p-4 flex items-start gap-3 fade-in relative"><div class="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center flex-shrink-0"><i data-lucide="trending-up" class="w-5 h-5 text-emerald-400"></i></div><div class="flex-1"><div class="text-xs text-emerald-400 font-semibold mb-0.5">OPPORTUNITY</div><div class="text-sm font-semibold text-white">${v.name} ↔ ${o.name}</div><div class="text-xs text-slate-400 mt-1">Strong positive link.</div></div><button onclick="shareToMappingURI('${payload}')" class="share-to-mapping-btn flex-shrink-0" title="Share to Mapping"><i data-lucide="share-2" class="w-3 h-3"></i></button></div>`;
   }
   cont.innerHTML = html; lucide.createIcons();
 }
@@ -1070,16 +1123,17 @@ function renderInsightBanners(v, corrs) {
   const cont = document.getElementById('insightBanners'); if (!cont) return;
   if (!corrs.length) { cont.innerHTML = ''; return; }
   const strongest = corrs[0]; const neg = corrs.filter(c => c.r < 0); const strong = corrs.filter(c => Math.abs(c.r) >= 0.5);
-  let html = `<div class="insight-card glass-light rounded-xl p-4 flex items-start gap-3 fade-in"><div class="w-10 h-10 rounded-lg ${strongest.r >= 0 ? 'bg-brand-500/15' : 'bg-rose-500/15'} flex items-center justify-center"><i data-lucide="${strongest.r >= 0 ? 'trending-up' : 'trending-down'}" class="w-5 h-5 ${strongest.r >= 0 ? 'text-brand-400' : 'text-rose-400'}"></i></div><div><div class="text-xs text-slate-500 mb-0.5">Strongest Connection</div><div class="text-sm font-semibold text-white">${v.name} → ${strongest.name}</div><div class="text-xs text-slate-400 mt-1">${corrStrength(strongest.r)} ${strongest.r >= 0 ? 'positive' : 'negative'} (r=${strongest.r.toFixed(3)}).</div></div></div>`;
+  const mkShare = (payload) => `<button onclick="shareToMappingURI('${encodeURIComponent(JSON.stringify(payload))}')" class="share-to-mapping-btn flex-shrink-0" title="Share to Mapping"><i data-lucide="share-2" class="w-3 h-3"></i></button>`;
+  let html = `<div class="insight-card glass-light rounded-xl p-4 flex items-start gap-3 fade-in"><div class="w-10 h-10 rounded-lg ${strongest.r >= 0 ? 'bg-brand-500/15' : 'bg-rose-500/15'} flex items-center justify-center"><i data-lucide="${strongest.r >= 0 ? 'trending-up' : 'trending-down'}" class="w-5 h-5 ${strongest.r >= 0 ? 'text-brand-400' : 'text-rose-400'}"></i></div><div class="flex-1"><div class="text-xs text-slate-500 mb-0.5">Strongest Connection</div><div class="text-sm font-semibold text-white">${v.name} → ${strongest.name}</div><div class="text-xs text-slate-400 mt-1">${corrStrength(strongest.r)} ${strongest.r >= 0 ? 'positive' : 'negative'} (r=${strongest.r.toFixed(3)}).</div></div>${mkShare({sourceType:'banner',title:'Strongest: '+v.name+' → '+strongest.name,body:corrStrength(strongest.r)+' '+(strongest.r>=0?'positive':'negative')+' (r='+strongest.r.toFixed(3)+').',tags:['banner','strongest',v.category.toLowerCase().replace(/\s+/g,'-')],color:strongest.r>=0?'#06b6d4':'#f43f5e'})}</div>`;
   if (neg.length > 0) {
     const n = neg.sort((a, b) => a.r - b.r)[0];
-    html += `<div class="insight-card glass-light rounded-xl p-4 flex items-start gap-3 fade-in"><div class="w-10 h-10 rounded-lg bg-rose-500/15 flex items-center justify-center"><i data-lucide="arrow-down" class="w-5 h-5 text-rose-400"></i></div><div><div class="text-xs text-slate-500 mb-0.5">Inverse Relationship</div><div class="text-sm font-semibold text-white">${v.name} ↯ ${n.name}</div><div class="text-xs text-slate-400 mt-1">As ${v.name.toLowerCase()} rises, ${n.name.toLowerCase()} tends to fall (r=${n.r.toFixed(3)}).</div></div></div>`;
+    html += `<div class="insight-card glass-light rounded-xl p-4 flex items-start gap-3 fade-in"><div class="w-10 h-10 rounded-lg bg-rose-500/15 flex items-center justify-center"><i data-lucide="arrow-down" class="w-5 h-5 text-rose-400"></i></div><div class="flex-1"><div class="text-xs text-slate-500 mb-0.5">Inverse Relationship</div><div class="text-sm font-semibold text-white">${v.name} ↯ ${n.name}</div><div class="text-xs text-slate-400 mt-1">As ${v.name.toLowerCase()} rises, ${n.name.toLowerCase()} tends to fall (r=${n.r.toFixed(3)}).</div></div>${mkShare({sourceType:'banner',title:'Inverse: '+v.name+' ↯ '+n.name,body:'As '+v.name.toLowerCase()+' rises, '+n.name.toLowerCase()+' tends to fall (r='+n.r.toFixed(3)+').',tags:['banner','inverse',v.category.toLowerCase().replace(/\s+/g,'-')],color:'#f43f5e'})}</div>`;
   }
   const cross = corrs.find(c => Math.abs(c.r) >= 0.5 && c.category !== v.category);
   if (cross) {
-    html += `<div class="insight-card glass-light rounded-xl p-4 flex items-start gap-3 fade-in"><div class="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center"><i data-lucide="zap" class="w-5 h-5 text-amber-400"></i></div><div><div class="text-xs text-slate-500 mb-0.5">Cross-Domain Insight</div><div class="text-sm font-semibold text-white">${v.name} ↔ ${cross.name}</div><div class="text-xs text-slate-400 mt-1">${v.category} ↔ ${cross.category}: hidden relationship!</div></div></div>`;
+    html += `<div class="insight-card glass-light rounded-xl p-4 flex items-start gap-3 fade-in"><div class="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center"><i data-lucide="zap" class="w-5 h-5 text-amber-400"></i></div><div class="flex-1"><div class="text-xs text-slate-500 mb-0.5">Cross-Domain Insight</div><div class="text-sm font-semibold text-white">${v.name} ↔ ${cross.name}</div><div class="text-xs text-slate-400 mt-1">${v.category} ↔ ${cross.category}: hidden relationship!</div></div>${mkShare({sourceType:'banner',title:'Cross-Domain: '+v.name+' ↔ '+cross.name,body:v.category+' ↔ '+cross.category+': hidden relationship (r='+cross.r.toFixed(2)+').',tags:['banner','cross-domain',v.category.toLowerCase().replace(/\s+/g,'-'),cross.category.toLowerCase().replace(/\s+/g,'-')],color:'#f59e0b'})}</div>`;
   }
-  html += `<div class="insight-card glass-light rounded-xl p-4 flex items-start gap-3 fade-in"><div class="w-10 h-10 rounded-lg bg-purple-500/15 flex items-center justify-center"><i data-lucide="hash" class="w-5 h-5 text-purple-400"></i></div><div><div class="text-xs text-slate-500 mb-0.5">Summary</div><div class="text-sm font-semibold text-white">${strong.length} strong connections</div><div class="text-xs text-slate-400 mt-1">${strong.length} of ${corrs.length} variables show |r| >= 0.5.</div></div></div>`;
+  html += `<div class="insight-card glass-light rounded-xl p-4 flex items-start gap-3 fade-in"><div class="w-10 h-10 rounded-lg bg-purple-500/15 flex items-center justify-center"><i data-lucide="hash" class="w-5 h-5 text-purple-400"></i></div><div class="flex-1"><div class="text-xs text-slate-500 mb-0.5">Summary</div><div class="text-sm font-semibold text-white">${strong.length} strong connections</div><div class="text-xs text-slate-400 mt-1">${strong.length} of ${corrs.length} variables show |r| >= 0.5.</div></div>${mkShare({sourceType:'banner',title:'Summary: '+v.name,body:strong.length+' of '+corrs.length+' variables show |r| ≥ 0.5 with '+v.name+'.',tags:['banner','summary',v.category.toLowerCase().replace(/\s+/g,'-')],color:'#a855f7'})}</div>`;
   cont.innerHTML = html; lucide.createIcons();
 }
 
@@ -1211,10 +1265,20 @@ function renderInsightCards(v, corrs) {
   top.forEach((c, i) => {
     const isCross = c.category !== v.category;
     const practical = getPracticalInsight(v.key, c.key, c.r); if (!practical) return;
+    const sharePayload = encodeURIComponent(JSON.stringify({
+      sourceType: 'insight',
+      title: v.name + ' ↔ ' + c.name,
+      body: practical + ' (r=' + (c.r >= 0 ? '+' : '') + c.r.toFixed(2) + ')',
+      tags: ['insight', 'correlation', v.category.toLowerCase().replace(/\s+/g,'-'), c.category.toLowerCase().replace(/\s+/g,'-')],
+      color: c.r >= 0 ? '#06b6d4' : '#f43f5e'
+    }));
     html += `<div class="insight-card glass-light rounded-xl p-4 fade-in ${isCross ? 'border border-amber-500/20' : ''}" style="animation-delay:${i * 0.05}s">
       <div class="flex items-center justify-between mb-2"><div class="flex items-center gap-2"><i data-lucide="${c.icon}" class="w-4 h-4 ${c.r >= 0 ? 'text-brand-400' : 'text-rose-400'}"></i><span class="text-sm font-semibold text-white">${c.name}</span></div><div class="flex items-center gap-2">${isCross ? '<span class="text-[0.6rem] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">Cross-domain</span>' : ''}<span class="text-xs font-mono ${c.r >= 0 ? 'text-brand-300' : 'text-rose-300'}">${c.r >= 0 ? '+' : ''}${c.r.toFixed(3)}</span></div></div>
       <div class="text-xs text-slate-400 leading-relaxed">${practical}</div>
-      <button onclick="selectVariable('${c.key}')" class="mt-3 flex items-center gap-1 text-[0.65rem] font-medium text-brand-400 hover:text-brand-300 transition-colors"><i data-lucide="arrow-right" class="w-3 h-3"></i>Explore ${c.name}</button>
+      <div class="flex items-center justify-between mt-3">
+        <button onclick="selectVariable('${c.key}')" class="flex items-center gap-1 text-[0.65rem] font-medium text-brand-400 hover:text-brand-300 transition-colors"><i data-lucide="arrow-right" class="w-3 h-3"></i>Explore ${c.name}</button>
+        <button onclick="shareToMappingURI('${sharePayload}')" class="share-to-mapping-btn" title="Share to Mapping"><i data-lucide="share-2" class="w-3 h-3"></i>Share</button>
+      </div>
     </div>`;
   });
   cont.innerHTML = html; lucide.createIcons();
@@ -1272,13 +1336,27 @@ function calculateDecisionScores() {
 }
 function renderDecisionResults(top) {
   const el = document.getElementById('decisionResults'); if (!el) return;
-  el.innerHTML = top.map((s, i) => `
-    <div class="flex items-center gap-3 fade-in" style="animation-delay:${i * 0.05}s">
+  el.innerHTML = top.map((s, i) => {
+    const pct = Math.round(s.score * 100);
+    const topWeights = Object.entries(weights).filter(([k,w]) => w > 1).sort((a,b) => b[1]-a[1]).slice(0,3).map(([k]) => {
+      const vd = variableDefs.find(x => x.key === k); return vd ? vd.name : k;
+    });
+    const payload = encodeURIComponent(JSON.stringify({
+      sourceType: 'rank',
+      title: '#' + (i + 1) + ' ' + s.country,
+      body: s.country + ' ranks #' + (i + 1) + ' with a weighted score of ' + pct + '%.' + (topWeights.length ? ' Prioritised on: ' + topWeights.join(', ') + '.' : ''),
+      tags: ['rank', 'recommendation', s.country.toLowerCase().replace(/\s+/g,'-')],
+      color: '#06b6d4'
+    }));
+    return `
+    <div class="flex items-center gap-3 fade-in group" style="animation-delay:${i * 0.05}s">
       <div class="w-6 text-center text-xs font-bold text-slate-500">${i + 1}</div>
-      <div class="flex-1"><div class="flex items-center justify-between mb-1"><span class="text-sm font-medium text-white">${s.country}</span><span class="text-xs font-mono text-brand-300">${Math.round(s.score * 100)}%</span></div>
-      <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden"><div class="h-full bg-gradient-to-r from-brand-600 to-brand-400 rounded-full" style="width:${Math.round(s.score * 100)}%"></div></div></div>
+      <div class="flex-1"><div class="flex items-center justify-between mb-1"><span class="text-sm font-medium text-white">${s.country}</span><span class="text-xs font-mono text-brand-300">${pct}%</span></div>
+      <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden"><div class="h-full bg-gradient-to-r from-brand-600 to-brand-400 rounded-full" style="width:${pct}%"></div></div></div>
+      <button onclick="shareToMappingURI('${payload}')" class="share-to-mapping-btn opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" title="Share to Mapping"><i data-lucide="share-2" class="w-3 h-3"></i></button>
     </div>
-  `).join('');
+  `; }).join('');
+  lucide.createIcons();
 }
 function renderRadarChart(top3) {
   const canvas = document.getElementById('radarChart'); if (!canvas) return;
@@ -1352,7 +1430,15 @@ function calculateBenchmark() {
   }
   const cm = document.getElementById('closestMatch');
   if (cm) {
-    cm.innerHTML = `<div class="flex items-center gap-4"><div class="w-12 h-12 rounded-xl bg-brand-500/20 flex items-center justify-center"><i data-lucide="map-pin" class="w-6 h-6 text-brand-400"></i></div><div><div class="text-sm text-slate-500">Your profile most closely matches</div><div class="text-lg font-bold text-white">${best ? best.country : 'N/A'}</div><div class="text-xs text-slate-400">Similarity: ${best ? Math.max(0, 100 - bestDiff * 100).toFixed(0) : 0}%</div></div><button onclick="switchTab('explorer')" class="ml-auto px-3 py-1.5 rounded-lg bg-brand-600/80 text-xs text-white hover:bg-brand-500 transition-colors">Explore Data</button></div>`;
+    const simPct = best ? Math.max(0, 100 - bestDiff * 100).toFixed(0) : 0;
+    const matchPayload = encodeURIComponent(JSON.stringify({
+      sourceType: 'profile',
+      title: 'Closest Match: ' + (best ? best.country : 'N/A'),
+      body: 'Your profile most closely matches ' + (best ? best.country : 'N/A') + ' (similarity ' + simPct + '%).',
+      tags: ['profile', 'closest-match', best ? best.country.toLowerCase().replace(/\s+/g,'-') : 'na'],
+      color: '#06b6d4'
+    }));
+    cm.innerHTML = `<div class="flex items-center gap-4"><div class="w-12 h-12 rounded-xl bg-brand-500/20 flex items-center justify-center"><i data-lucide="map-pin" class="w-6 h-6 text-brand-400"></i></div><div class="flex-1"><div class="text-sm text-slate-500">Your profile most closely matches</div><div class="text-lg font-bold text-white">${best ? best.country : 'N/A'}</div><div class="text-xs text-slate-400">Similarity: ${simPct}%</div></div><button onclick="switchTab('explorer')" class="px-3 py-1.5 rounded-lg bg-brand-600/80 text-xs text-white hover:bg-brand-500 transition-colors">Explore Data</button><button onclick="shareToMappingURI('${matchPayload}')" class="share-to-mapping-btn ml-1" title="Share to Mapping"><i data-lucide="share-2" class="w-3.5 h-3.5"></i></button></div>`;
   }
   const priorities = variableDefs.map(v => ({ key: v.key, name: v.name, percentile: user[v.key] != null ? M.percentile(user[v.key], vals(v.key)) : 50, higherIsBetter: v.higherIsBetter, icon: v.icon })).filter(v => v.higherIsBetter !== null).sort((a, b) => { const aScore = a.higherIsBetter ? a.percentile : 100 - a.percentile; const bScore = b.higherIsBetter ? b.percentile : 100 - b.percentile; return aScore - bScore; }).slice(0, 5);
   const pa = document.getElementById('priorityActions');
@@ -1360,7 +1446,14 @@ function calculateBenchmark() {
     pa.innerHTML = priorities.map(p => {
       const isLow = p.higherIsBetter ? p.percentile < 50 : p.percentile > 50;
       const action = p.higherIsBetter ? (p.percentile < 30 ? 'Critical gap -- prioritize' : p.percentile < 50 ? 'Below average -- improve' : 'Solid foundation') : (p.percentile > 70 ? 'Critical risk -- reduce' : p.percentile > 50 ? 'Above average risk -- monitor' : 'Manageable level');
-      return `<div class="flex items-center gap-3 p-3 rounded-lg ${isLow ? 'glass-risk' : 'glass-success'}"><i data-lucide="${p.icon}" class="w-4 h-4 ${isLow ? 'text-red-400' : 'text-emerald-400'}"></i><div class="flex-1"><div class="text-xs font-medium text-white">${p.name}: ${p.percentile.toFixed(0)}th percentile</div><div class="text-[0.65rem] text-slate-400">${action}</div></div></div>`;
+      const payload = encodeURIComponent(JSON.stringify({
+        sourceType: 'priority',
+        title: p.name + ' — ' + action,
+        body: p.name + ' is at the ' + p.percentile.toFixed(0) + 'th percentile. ' + action + '.',
+        tags: ['priority', 'profile', p.key],
+        color: isLow ? '#f43f5e' : '#10b981'
+      }));
+      return `<div class="flex items-center gap-3 p-3 rounded-lg ${isLow ? 'glass-risk' : 'glass-success'} group"><i data-lucide="${p.icon}" class="w-4 h-4 ${isLow ? 'text-red-400' : 'text-emerald-400'}"></i><div class="flex-1"><div class="text-xs font-medium text-white">${p.name}: ${p.percentile.toFixed(0)}th percentile</div><div class="text-[0.65rem] text-slate-400">${action}</div></div><button onclick="shareToMappingURI('${payload}')" class="share-to-mapping-btn opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" title="Share to Mapping"><i data-lucide="share-2" class="w-3 h-3"></i></button></div>`;
     }).join('');
   }
   lucide.createIcons();
@@ -1370,13 +1463,23 @@ function calculateBenchmark() {
 function renderOutliers() {
   const outliers = findOutliers();
   const cont = document.getElementById('outlierList'); if (!cont) return;
-  cont.innerHTML = outliers.slice(0, 12).map((o, i) => `
+  cont.innerHTML = outliers.slice(0, 12).map((o, i) => {
+    const explanation = getOutlierExplanation(o.country, o.deviations);
+    const topDevs = o.deviations.slice(0, 3).map(d => `${d.name} ${d.z > 0 ? '+' : ''}${d.z.toFixed(1)}σ`).join(', ');
+    const sharePayload = encodeURIComponent(JSON.stringify({
+      sourceType: 'outlier',
+      title: o.country + ' — Outlier',
+      body: explanation + ' Top deviations: ' + topDevs + '.',
+      tags: ['outlier', o.country.toLowerCase().replace(/\s+/g,'-')],
+      color: '#f59e0b'
+    }));
+    return `
     <div class="insight-card glass-light rounded-xl p-4 fade-in" style="animation-delay:${i * 0.05}s">
-      <div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center"><i data-lucide="alert-circle" class="w-5 h-5 text-amber-400"></i></div><div><div class="text-sm font-bold text-white">${o.country}</div><div class="text-[0.65rem] text-amber-400">${o.deviations.length} anomalous metric${o.deviations.length > 1 ? 's' : ''}</div></div></div>
+      <div class="flex items-center justify-between mb-3"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center"><i data-lucide="alert-circle" class="w-5 h-5 text-amber-400"></i></div><div><div class="text-sm font-bold text-white">${o.country}</div><div class="text-[0.65rem] text-amber-400">${o.deviations.length} anomalous metric${o.deviations.length > 1 ? 's' : ''}</div></div></div><button onclick="shareToMappingURI('${sharePayload}')" class="share-to-mapping-btn" title="Share to Mapping"><i data-lucide="share-2" class="w-3 h-3"></i></button></div>
       <div class="flex flex-wrap gap-2 mb-3">${o.deviations.slice(0, 3).map(d => `<span class="text-[0.65rem] px-2 py-0.5 rounded-full ${d.z > 0 ? 'bg-brand-500/15 text-brand-300' : 'bg-rose-500/15 text-rose-300'}">${d.name}: ${d.z > 0 ? '+' : ''}${d.z.toFixed(1)}σ</span>`).join('')}</div>
-      <div class="text-xs text-slate-400 leading-relaxed">${getOutlierExplanation(o.country, o.deviations)}</div>
+      <div class="text-xs text-slate-400 leading-relaxed">${explanation}</div>
     </div>
-  `).join(''); lucide.createIcons();
+  `; }).join(''); lucide.createIcons();
 }
 function findOutliers() {
   const outliers = [];
@@ -1442,12 +1545,20 @@ function runSimulation(pctChange) {
   if (results) {
     results.innerHTML = affected.slice(0, 15).map((a, idx) => {
       const deeperCorrs = getCorrelations(a.key).filter(c => Math.abs(c.r) >= 0.3 && c.key !== key).slice(0, 5);
+      const simPayload = encodeURIComponent(JSON.stringify({
+        sourceType: 'simulator',
+        title: v.name + ' ' + (pctChange >= 0 ? '+' : '') + pctChange + '% → ' + a.name,
+        body: 'Projected change in ' + a.name + ': ' + (a.delta >= 0 ? '+' : '') + a.delta.toFixed(1) + ' ' + (a.unit || '') + ' (via r=' + (a.r >= 0 ? '+' : '') + a.r.toFixed(2) + ').',
+        tags: ['simulator', 'projection', a.key, v.key],
+        color: a.delta > 0 ? '#10b981' : '#f43f5e'
+      }));
       return `
-      <div class="rounded-lg ${a.delta > 0 ? 'bg-emerald-500/8' : 'bg-rose-500/8'} overflow-hidden">
+      <div class="rounded-lg ${a.delta > 0 ? 'bg-emerald-500/8' : 'bg-rose-500/8'} overflow-hidden group">
         <div class="flex items-center justify-between p-2 cursor-pointer" onclick="const el=document.getElementById('simDeep-${idx}');el.classList.toggle('hidden');const chev=document.getElementById('simChev-${idx}');if(chev)chev.style.transform=el.classList.contains('hidden')?'rotate(0deg)':'rotate(180deg)';">
           <div class="flex items-center gap-2"><i data-lucide="${a.icon}" class="w-3.5 h-3.5 text-slate-500"></i><span class="text-xs text-slate-300">${a.name}</span></div>
           <div class="flex items-center gap-1.5">
             <div class="text-xs font-mono ${a.delta > 0 ? 'text-emerald-300' : 'text-rose-300'}">${a.delta > 0 ? '+' : ''}${a.delta.toFixed(1)} (${(a.r * 100).toFixed(0)}%)</div>
+            <button onclick="event.stopPropagation();shareToMappingURI('${simPayload}')" class="share-to-mapping-btn opacity-0 group-hover:opacity-100 transition-opacity" title="Share to Mapping"><i data-lucide="share-2" class="w-3 h-3"></i></button>
             <i data-lucide="chevron-down" class="w-3 h-3 text-slate-500 transition-transform" style="transition-duration:0.2s" id="simChev-${idx}"></i>
           </div>
         </div>
@@ -1480,7 +1591,15 @@ function renderSimChart(v, affected) {
 function renderGemDiscovery() {
   const cont = document.getElementById('gemList'); if (!cont) return;
   const gems = findUniqueInsights();
-  cont.innerHTML = gems.slice(0, 15).map((g, i) => `
+  cont.innerHTML = gems.slice(0, 15).map((g, i) => {
+    const sharePayload = encodeURIComponent(JSON.stringify({
+      sourceType: 'gem',
+      title: g.v1.name + ' ↔ ' + g.v2.name,
+      body: g.explanation + ' (r=' + (g.r >= 0 ? '+' : '') + g.r.toFixed(2) + ', ' + g.surprise.toFixed(1) + 'σ unexpected)',
+      tags: ['gem', 'cross-domain', g.v1.category.toLowerCase().replace(/\s+/g,'-'), g.v2.category.toLowerCase().replace(/\s+/g,'-')],
+      color: '#f59e0b'
+    }));
+    return `
     <div class="gem-card fade-in" style="animation-delay:${i * 0.05}s">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
@@ -1495,13 +1614,16 @@ function renderGemDiscovery() {
         <span class="text-[0.6rem] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300">${g.surprise.toFixed(1)}σ unexpected</span>
       </div>
       <p class="text-xs text-slate-400 leading-relaxed">${g.explanation}</p>
-      <div class="flex gap-2 mt-3">
-        <button onclick="selectVariable('${g.v1.key}')" class="text-[0.65rem] text-brand-400 hover:text-brand-300 transition-colors">Explore ${g.v1.name}</button>
-        <span class="text-slate-600">·</span>
-        <button onclick="selectVariable('${g.v2.key}')" class="text-[0.65rem] text-brand-400 hover:text-brand-300 transition-colors">Explore ${g.v2.name}</button>
+      <div class="flex items-center justify-between mt-3">
+        <div class="flex gap-2 items-center">
+          <button onclick="selectVariable('${g.v1.key}')" class="text-[0.65rem] text-brand-400 hover:text-brand-300 transition-colors">Explore ${g.v1.name}</button>
+          <span class="text-slate-600">·</span>
+          <button onclick="selectVariable('${g.v2.key}')" class="text-[0.65rem] text-brand-400 hover:text-brand-300 transition-colors">Explore ${g.v2.name}</button>
+        </div>
+        <button onclick="shareToMappingURI('${sharePayload}')" class="share-to-mapping-btn" title="Share to Mapping"><i data-lucide="share-2" class="w-3 h-3"></i></button>
       </div>
     </div>
-  `).join(''); lucide.createIcons();
+  `; }).join(''); lucide.createIcons();
 }
 function findUniqueInsights() {
   const gems = [];
