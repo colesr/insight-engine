@@ -5,9 +5,8 @@ on:
     - cron: "0 3 * * *"   # 03:00 UTC nightly
   workflow_dispatch:        # manual trigger button
 
-# Needs write access to push merged mutations back to the GitHub repo.
 permissions:
-  contents: write
+  contents: write           # push merged mutations / attempt logs
 
 jobs:
   evolve:
@@ -41,12 +40,24 @@ jobs:
             node --check "static/$f"
           done
 
-      - name: Propose mutation (one diff)
+      - name: Propose mutation (one SEARCH/REPLACE edit)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: python evolution/evolve.py
 
+      - name: Detect mutation
+        id: detect
+        run: |
+          if [ -f evolution/.mutation_applied ]; then
+            echo "applied=true" >> "$GITHUB_OUTPUT"
+            echo "Mutation applied to $(cat evolution/.mutation_applied)"
+          else
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+            echo "No usable mutation this cycle — clean no-op."
+          fi
+
       - name: Guard - frozen files untouched
+        if: steps.detect.outputs.applied == 'true'
         run: |
           if ! git diff --quiet -- tests/ .github/ requirements.txt requirements-dev.txt Dockerfile; then
             echo "VIOLATION: mutation touched frozen files. Reverting."
@@ -56,6 +67,7 @@ jobs:
 
       - name: Validate mutation
         id: validate
+        if: steps.detect.outputs.applied == 'true'
         continue-on-error: true
         run: |
           pytest tests/ -q
@@ -63,25 +75,33 @@ jobs:
             node --check "static/$f"
           done
 
-      - name: Merge or revert
-        run: |
-          git config user.name "evolution-bot"
-          git config user.email "bot@users.noreply.github.com"
-          if [ "${{ steps.validate.outcome }}" = "success" ]; then
-            echo "$(date -u --iso-8601=seconds) | MERGED | tests passed" >> evolution/attempts.log
-            git add main.py static/ evolution/attempts.log
-            git commit -m "evolve: mutation accepted $(date -u +%F)"
-          else
-            git checkout -- main.py static/
-            echo "$(date -u --iso-8601=seconds) | REVERTED | tests failed" >> evolution/attempts.log
-            git add evolution/attempts.log
-            git commit -m "evolve: mutation reverted $(date -u +%F)"
-          fi
-          git push origin HEAD:main
-
-      - name: Deploy to HuggingFace Space (live) on accepted mutation
-        if: steps.validate.outcome == 'success'
+      - name: Finalize — merge / revert / no-op, then push (+deploy on accept)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git push "https://colesr:${HF_TOKEN}@huggingface.co/spaces/colesr/insight-engine-docker" HEAD:main
+          git config user.name "evolution-bot"
+          git config user.email "bot@users.noreply.github.com"
+          rm -f evolution/.mutation_applied
+          ts="$(date -u --iso-8601=seconds)"
+
+          if [ "${{ steps.detect.outputs.applied }}" != "true" ]; then
+            git add evolution/attempts.log
+            git commit -m "evolve: no-op $(date -u +%F)" || echo "nothing to commit"
+            git push origin HEAD:main || true
+            exit 0
+          fi
+
+          if [ "${{ steps.validate.outcome }}" = "success" ]; then
+            echo "$ts | MERGED | tests passed" >> evolution/attempts.log
+            git add main.py static/ evolution/attempts.log
+            git commit -m "evolve: mutation accepted $(date -u +%F)"
+            git push origin HEAD:main
+            echo "Deploying to live HuggingFace Space..."
+            git push "https://colesr:${HF_TOKEN}@huggingface.co/spaces/colesr/insight-engine-docker" HEAD:main
+          else
+            git checkout -- main.py static/
+            echo "$ts | REVERTED | tests failed" >> evolution/attempts.log
+            git add evolution/attempts.log
+            git commit -m "evolve: mutation reverted $(date -u +%F)"
+            git push origin HEAD:main
+          fi

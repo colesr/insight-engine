@@ -16,6 +16,9 @@ Improvements should target, in strict priority order:
 4. **Coverage / features** — breadth of indicators, built-in datasets, data sources,
    and globe countries may only GROW. Adding indicators/datasets or a genuinely useful
    UI capability is the main way to make forward progress once 1–3 are solid.
+5. **Sibling integration** — the `/api/news/world-digest` bridge and the globe's
+   "Digest view" surface World Digest's published narrative (`world-digest/news-exchange@1`).
+   Keep both intact and best-effort; the bridge must never 500 when the sibling is down.
 
 ## Constraints (non-negotiable)
 
@@ -33,6 +36,8 @@ Improvements should target, in strict priority order:
   `os.remove`, or `shutil.rmtree`.
 - The frontend's live load order is `dataset_embed.js → app_v30.js → init() → globe_patch.js
   → mapping_canvas.js`. `static/app.js` and `static/app_v35.js` are DEAD — do not edit them.
+- Treat `contract/` as a read-only shared interface with the World Digest sibling. Never
+  rename/remove `/api/news/world-digest` or the globe "Digest view" wiring (`tests/` pins both).
 - Keep all JS syntactically valid (`node --check` gates it) and `init()` callable.
 
 ## Signals to use

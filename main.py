@@ -2371,6 +2371,44 @@ async def news_globe():
     # Last resort — synthesized.
     return _build_globe_response({})
 
+
+# ----------------------------------------------------------------------------
+# Sibling bridge: World Digest's published digest (contract/news_exchange.md).
+# Best-effort + cached; surfaces the sibling's clustered LLM narrative for the
+# globe's "Digest view". Never 500s — a sibling outage degrades to an empty,
+# stale-flagged payload so the globe keeps rendering.
+# ----------------------------------------------------------------------------
+DIGEST_JSON_URL = os.environ.get(
+    "DIGEST_JSON_URL",
+    "https://raw.githubusercontent.com/colesr/World.alive/main/public/digest.json",
+)
+
+@app.get("/api/news/world-digest")
+def news_world_digest():
+    cache_key = "world_digest_v1"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    fallback = {
+        "schema": "world-digest/news-exchange@1",
+        "clusters": [],
+        "narrative": "",
+        "stale": True,
+    }
+    try:
+        resp = requests.get(DIGEST_JSON_URL, timeout=8)
+        if not resp.ok:
+            return fallback
+        data = resp.json()
+        if not isinstance(data, dict) or "clusters" not in data:
+            return fallback
+        data.setdefault("stale", False)
+        _cache_set(cache_key, data, ttl=1800)
+        return data
+    except Exception as e:
+        print(f"world-digest bridge failed: {e}")
+        return fallback
+
 # ============================================================================
 # HEALTH CHECK
 # ============================================================================

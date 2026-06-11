@@ -13,3 +13,6 @@ index
 
 # Playwright browsers (if the optional render smoke test is enabled locally)
 node_modules/
+
+# Evolution engine working marker (never committed)
+evolution/.mutation_applied

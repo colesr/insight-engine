@@ -257,3 +257,29 @@ def test_main_has_no_fitness_gaming_calls():
     src = inspect.getsource(main)
     for bad in ["pytest.skip", "sys.exit(0)", "os.remove(", "shutil.rmtree"]:
         assert bad not in src, f"main.py must not contain {bad!r}"
+
+
+# ===========================================================================
+# 6. SIBLING BRIDGE — the news-exchange contract (contract/news_exchange.md)
+# ===========================================================================
+
+def test_world_digest_route_registered(client):
+    paths = {getattr(r, "path", None) for r in client.app.routes}
+    assert "/api/news/world-digest" in paths
+
+
+def test_world_digest_fallback_shape(client, monkeypatch):
+    """When the sibling artifact is unreachable, the bridge must degrade to a
+    stale-flagged empty payload — never 500, never raise."""
+    main._cache.pop("world_digest_v1", None)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("sibling unreachable")
+
+    monkeypatch.setattr(main.requests, "get", boom)
+    resp = client.get("/api/news/world-digest")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["stale"] is True
+    assert body["clusters"] == []
+    assert body["schema"] == "world-digest/news-exchange@1"

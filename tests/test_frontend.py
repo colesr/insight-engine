@@ -81,3 +81,10 @@ def test_index_has_all_tabs():
 def test_index_bootstraps_init():
     html = INDEX.read_text()
     assert "init()" in html
+
+
+def test_globe_digest_view_wired():
+    """The globe's 'Digest view' must keep calling the sibling bridge endpoint
+    (contract/news_exchange.md). A mutation may restyle it but not unwire it."""
+    src = (STATIC / "globe_patch.js").read_text()
+    assert "/api/news/world-digest" in src

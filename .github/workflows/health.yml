@@ -31,3 +31,7 @@ jobs:
           git add evolution/metrics.json
           git commit -m "metrics: daily health $(date -u +%F)" || echo "no changes"
           git push origin HEAD:main
+
+      - name: Co-evolution dashboard
+        if: always()
+        run: python scripts/sibling_dashboard.py

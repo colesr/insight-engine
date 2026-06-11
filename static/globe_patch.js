@@ -1215,3 +1215,114 @@
 
   console.log('globe_standalone: loaded');
 })();
+
+// === Digest View: sibling bridge to World Digest (contract/news_exchange.md) ===
+// Adds a "Digest" toggle to the globe that slides in World Digest's clustered,
+// LLM-written narrative fetched from /api/news/world-digest. Fully self-contained
+// and best-effort: if the sibling hasn't published or is unreachable it shows a
+// quiet notice and the globe is otherwise untouched.
+(function() {
+  'use strict';
+  var PANEL_ID = 'worldDigestPanel';
+  var injected = false;
+
+  function ensureUI() {
+    if (injected) return true;
+    var overlay = document.getElementById('globeOverlay');
+    if (!overlay) return false;
+    var bar = overlay.querySelector('.globe-top-bar');
+    if (!bar) return false;
+
+    var btn = document.createElement('button');
+    btn.id = 'worldDigestToggle';
+    btn.textContent = 'Digest';
+    btn.style.cssText = 'pointer-events:auto;cursor:pointer;font-size:11px;font-weight:600;color:#94a3b8;background:rgba(15,23,42,0.7);border:1px solid rgba(34,211,238,0.15);border-radius:999px;padding:6px 14px;margin-right:8px;transition:all .2s';
+    btn.onmouseenter = function() { btn.style.color = '#22d3ee'; btn.style.borderColor = 'rgba(34,211,238,0.4)'; };
+    btn.onmouseleave = function() { btn.style.color = '#94a3b8'; btn.style.borderColor = 'rgba(34,211,238,0.15)'; };
+    btn.onclick = toggleDigest;
+    var closeBtn = bar.querySelector('.globe-close');
+    if (closeBtn && closeBtn.parentNode) closeBtn.parentNode.insertBefore(btn, closeBtn);
+    else bar.appendChild(btn);
+
+    var panel = document.createElement('div');
+    panel.id = PANEL_ID;
+    panel.className = 'globe-detail-panel';   // reuse the slide-in panel styling
+    panel.style.left = '0';
+    panel.style.right = 'auto';
+    panel.style.borderLeft = 'none';
+    panel.style.borderRight = '1px solid rgba(34,211,238,0.1)';
+    panel.style.transform = 'translateX(-100%)';
+    panel.setAttribute('data-open', '0');
+    panel.innerHTML = '<div class="globe-detail-header"><div><div class="text-base font-bold text-white">World Digest</div><div class="text-xs mt-0.5 text-slate-400">State of the World &mdash; clustered narrative</div></div><button id="worldDigestClose" class="globe-close" style="width:30px;height:30px">&times;</button></div><div id="worldDigestBody" class="globe-detail-body"><div class="text-xs text-slate-500">Loading&hellip;</div></div>';
+    overlay.appendChild(panel);
+    var pc = panel.querySelector('#worldDigestClose');
+    if (pc) pc.onclick = function() { panel.style.transform = 'translateX(-100%)'; panel.setAttribute('data-open', '0'); };
+
+    injected = true;
+    return true;
+  }
+
+  function toggleDigest() {
+    if (!ensureUI()) return;
+    var panel = document.getElementById(PANEL_ID);
+    if (!panel) return;
+    if (panel.getAttribute('data-open') === '1') {
+      panel.style.transform = 'translateX(-100%)';
+      panel.setAttribute('data-open', '0');
+    } else {
+      panel.style.transform = 'translateX(0)';
+      panel.setAttribute('data-open', '1');
+      loadDigest();
+    }
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  function render(data) {
+    var body = document.getElementById('worldDigestBody');
+    if (!body) return;
+    if (!data || data.stale || !data.clusters || !data.clusters.length) {
+      body.innerHTML = '<div class="text-xs text-slate-500">World Digest hasn\'t published yet, or is unreachable. The globe is unaffected.</div>';
+      return;
+    }
+    var html = '';
+    if (data.narrative) {
+      html += '<div class="globe-detail-section"><div class="globe-detail-title">Narrative</div>' +
+        '<div class="text-xs text-slate-300" style="white-space:pre-wrap;line-height:1.5">' + esc(data.narrative).slice(0, 4000) + '</div></div>';
+    }
+    html += '<div class="globe-detail-section"><div class="globe-detail-title">Top stories</div><div class="flex flex-col gap-2">';
+    data.clusters.slice(0, 12).forEach(function(c) {
+      var src = (c.countries && c.countries.length ? c.countries : (c.regions || [])).join(', ');
+      html += '<div class="globe-headline-item"><div class="globe-headline-title">' + esc(c.headline) + '</div>' +
+        '<div class="globe-headline-meta"><span class="globe-headline-source">' + esc(src) + '</span>' +
+        '<span>' + esc(c.outlets || 0) + ' outlets</span></div></div>';
+    });
+    html += '</div></div>';
+    body.innerHTML = html;
+  }
+
+  function loadDigest() {
+    var body = document.getElementById('worldDigestBody');
+    if (body) body.innerHTML = '<div class="text-xs text-slate-500">Loading&hellip;</div>';
+    fetch('/api/news/world-digest', { cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(render)
+      .catch(function() { render(null); });
+  }
+
+  window.toggleWorldDigest = toggleDigest;
+
+  // The overlay ships in index.html, but the bar may settle after load; retry a
+  // few times then give up quietly.
+  var tries = 0;
+  var t = setInterval(function() {
+    tries++;
+    if (ensureUI() || tries > 20) clearInterval(t);
+  }, 500);
+
+  console.log('globe_digest_view: loaded');
+})();
