@@ -871,7 +871,7 @@ async function init() {
   initTooltips();
   lucide.createIcons(); initTabs(); initExplorer();
   initDecisionFramework(); initBenchmark();
-  initSimulatorUI(); initCompareUI(); initMapping(); initMapping();
+  initSimulatorUI(); initCompareUI(); initMapping();
   restoreFromURL();
   showStatus('Ready', 100);
   const dp = document.getElementById('dataPointCount');
