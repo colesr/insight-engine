@@ -103,7 +103,7 @@
         tagsHtml +
       '</div>';
     }).join('');
-    if (window.lucide) try { lucide.createIcons(); } catch (e) {}
+    if (window.lucide && typeof lucide.createIcons === 'function') try { lucide.createIcons(); } catch (e) {}
   }
 
   function renderLines() {
