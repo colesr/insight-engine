@@ -76,6 +76,30 @@ grow, never shrink.
 - LLM: Hugging Face Inference Providers router (`Qwen/Qwen3-Coder-480B-A35B-Instruct:cheapest`)
   via `HF_TOKEN`, OpenAI-compatible shape — same infra as the sibling WorldDigest system.
 
+## Sibling coupling (World Digest)
+
+This app is bidirectionally coupled to a sibling self-evolving app, **World Digest**
+(`colesr/World.alive` on GitHub — a batch RSS digest pipeline), via a **vendored frozen
+contract**. The contract lives in `contract/` (`news_exchange.md` spec + `country_aliases.json`),
+schema id `world-digest/news-exchange@1` — an *identical copy* is vendored into both repos and
+pinned by frozen tests on each side, so it sits outside every evolvable file and no mutation
+loop can drift it. Treat `contract/` as a **read-only shared interface**.
+
+- **We consume:** `main.py` `GET /api/news/world-digest` fetches World Digest's published
+  `public/digest.json` (env `DIGEST_JSON_URL`, default raw GitHub), cached ~30 min. It is
+  **best-effort and never 500s** — a sibling outage degrades to an empty `stale: true` payload.
+- **The globe "Digest view":** a self-contained module appended to `static/globe_patch.js`
+  adds a "Digest" toggle that overlays the sibling's clustered LLM narrative.
+- **They consume us:** World Digest borrows our `/api/news/globe` per-country sentiment over
+  HTTP to enrich its digest (we require no change to serve it).
+- **Frozen wiring (do not rename/remove):** `tests/test_app.py` (route registered + fallback
+  shape) and `tests/test_frontend.py::test_globe_digest_view_wired`.
+- **Co-evolution:** `scripts/sibling_dashboard.py` (run in `health.yml`) renders a merged
+  health view of both apps; `evolution/prompts.md` carries an integration tier.
+
+**Cardinal invariant:** the coupling is additive and best-effort — this app must fully render
+with the sibling offline. A mutation that breaks the bridge will fail the frozen tests and revert.
+
 ## Secrets (GitHub repo → Settings → Secrets and variables → Actions)
 
 - `HF_TOKEN` — a HuggingFace token with BOTH "Make calls to Inference Providers" (for the
