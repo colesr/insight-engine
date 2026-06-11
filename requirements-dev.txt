@@ -1,0 +1,4 @@
+# CI / test-only dependencies. NOT installed into the HF Docker image
+# (the Dockerfile uses requirements.txt only), so the runtime image stays lean.
+pytest>=8.0
+httpx>=0.27          # required by fastapi.testclient.TestClient

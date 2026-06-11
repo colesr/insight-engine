@@ -1,0 +1,15 @@
+# Local Claude Code settings (machine-specific)
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Dead / local-only artifacts (not part of the canonical app)
+app.js
+index
+
+# Playwright browsers (if the optional render smoke test is enabled locally)
+node_modules/
