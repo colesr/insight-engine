@@ -22,23 +22,88 @@ function apiWithSignal(path, opts = {}) {
 
 // === MATH ===
 const M = {
-  mean: a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0,
-  std: a => { const m = M.mean(a); return a.length > 1 ? Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / (a.length - 1)) : 0; },
-  pearson: (x, y) => {
-    const n = x.length; if (n < 2 || n !== y.length) return 0;
-    const mx = M.mean(x), my = M.mean(y); let num = 0, dx = 0, dy = 0;
-    for (let i = 0; i < n; i++) { const xi = x[i] - mx, yi = y[i] - my; num += xi * yi; dx += xi * xi; dy += yi * yi; }
-    const d = Math.sqrt(dx * dy); return d === 0 ? 0 : num / d;
+  mean: a => {
+    let sum = 0, len = a.length;
+    if (len === 0) return 0;
+    for (let i = 0; i < len; i++) sum += a[i];
+    return sum / len;
   },
-  normalize: (v, arr) => { const mn = Math.min(...arr), mx = Math.max(...arr); return mx === mn ? 0.5 : (v - mn) / (mx - mn); },
-  percentile: (v, arr) => { let c = 0; for (let x of arr) if (x <= v) c++; return arr.length ? c / arr.length * 100 : 50; },
+  std: a => { 
+    const len = a.length;
+    if (len < 2) return 0;
+    const m = M.mean(a);
+    let sum = 0;
+    for (let i = 0; i < len; i++) {
+      const diff = a[i] - m;
+      sum += diff * diff;
+    }
+    return Math.sqrt(sum / (len - 1));
+  },
+  pearson: (x, y) => {
+    const n = x.length;
+    if (n < 2 || n !== y.length) return 0;
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+    for (let i = 0; i < n; i++) {
+      const xi = x[i], yi = y[i];
+      sumX += xi;
+      sumY += yi;
+      sumXY += xi * yi;
+      sumX2 += xi * xi;
+      sumY2 += yi * yi;
+    }
+    const mx = sumX / n, my = sumY / n;
+    const num = sumXY - n * mx * my;
+    const den = Math.sqrt((sumX2 - n * mx * mx) * (sumY2 - n * my * my));
+    return den === 0 ? 0 : num / den;
+  },
+  normalize: (v, arr) => { 
+    if (arr.length === 0) return 0.5;
+    let mn = arr[0], mx = arr[0];
+    for (let i = 1; i < arr.length; i++) {
+      const val = arr[i];
+      if (val < mn) mn = val;
+      if (val > mx) mx = val;
+    }
+    return mx === mn ? 0.5 : (v - mn) / (mx - mn);
+  },
+  percentile: (v, arr) => { 
+    if (arr.length === 0) return 50;
+    let c = 0;
+    for (let i = 0; i < arr.length; i++) if (arr[i] <= v) c++;
+    return c / arr.length * 100;
+  },
   zscore: (v, arr) => { const m = M.mean(arr), s = M.std(arr); return s === 0 ? 0 : (v - m) / s; }
 };
-function vals(key, data = dataset) { return data.map(d => d[key]).filter(v => v != null && !isNaN(v)); }
+function vals(key, data = dataset) { 
+  const result = [];
+  for (let i = 0; i < data.length; i++) {
+    const val = data[i][key];
+    if (val != null && !isNaN(val)) result.push(val);
+  }
+  return result;
+}
 function getCorrelations(key, data = dataset) {
-  return variableDefs.filter(v => v.key !== key && data.some(d => d[v.key] != null))
-    .map(v => ({ ...v, r: M.pearson(vals(key, data), vals(v.key, data)) }))
-    .filter(c => !isNaN(c.r)).sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+  const validVars = [];
+  for (let i = 0; i < variableDefs.length; i++) {
+    const v = variableDefs[i];
+    if (v.key !== key) {
+      for (let j = 0; j < data.length; j++) {
+        if (data[j][v.key] != null) {
+          validVars.push(v);
+          break;
+        }
+      }
+    }
+  }
+  const correlations = [];
+  const keyVals = vals(key, data);
+  for (let i = 0; i < validVars.length; i++) {
+    const v = validVars[i];
+    const vVals = vals(v.key, data);
+    const r = M.pearson(keyVals, vVals);
+    if (!isNaN(r)) correlations.push({ ...v, r });
+  }
+  return correlations.sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
 }
 function corrStrength(r) { const a = Math.abs(r); return a >= 0.9 ? 'Very Strong' : a >= 0.7 ? 'Strong' : a >= 0.5 ? 'Moderate' : a >= 0.3 ? 'Weak' : 'Negligible'; }
 let _abortController = null;
