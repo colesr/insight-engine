@@ -194,9 +194,11 @@
   function fit() {
     var canvas = $('mappingCanvas');
     if (!canvas || cards.length === 0) {
-      pan = { x: 0, y: 0 };
-      applyPanTransform();
-      save();
+      if (pan.x !== 0 || pan.y !== 0) {
+        pan = { x: 0, y: 0 };
+        applyPanTransform();
+        save();
+      }
       return;
     }
     var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -212,10 +214,14 @@
     var rect = canvas.getBoundingClientRect();
     var cx = (minX + maxX) / 2;
     var cy = (minY + maxY) / 2;
-    pan.x = rect.width / 2 - cx;
-    pan.y = rect.height / 2 - cy;
-    applyPanTransform();
-    save();
+    var newX = rect.width / 2 - cx;
+    var newY = rect.height / 2 - cy;
+    if (pan.x !== newX || pan.y !== newY) {
+      pan.x = newX;
+      pan.y = newY;
+      applyPanTransform();
+      save();
+    }
   }
 
   // ===== Events =====
