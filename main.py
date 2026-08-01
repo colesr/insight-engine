@@ -1185,27 +1185,36 @@ def analyze_correlations(request: dict = Body(...)):
     numeric_cols = []
     for ind in indicators:
         key = ind.get("key")
-        if key and key in df.columns and df[key].dtype in [np.float64, np.int64, 'float64', 'int64']:
+        if key and key in df.columns and pd.api.types.is_numeric_dtype(df[key]):
             numeric_cols.append((key, ind))
 
-    correlations = []
-    for i, (k1, ind1) in enumerate(numeric_cols):
-        for j, (k2, ind2) in enumerate(numeric_cols):
-            if i >= j:
-                continue
-            corr = df[k1].corr(df[k2])
-            if pd.isna(corr):
-                continue
-            correlations.append({
-                "var1": {"key": k1, "name": ind1["name"], "category": ind1.get("category", "General")},
-                "var2": {"key": k2, "name": ind2["name"], "category": ind2.get("category", "General")},
-                "r": round(float(corr), 4),
-                "abs_r": round(abs(float(corr)), 4),
-                "n": int(df[[k1, k2]].dropna().shape[0]),
-            })
-
-    correlations.sort(key=lambda x: x["abs_r"], reverse=True)
-    return {"correlations": correlations, "count": len(correlations)}
+    # Use pandas corr() method for better performance on all pairs
+    if len(numeric_cols) > 1:
+        numeric_keys = [k for k, _ in numeric_cols]
+        corr_matrix = df[numeric_keys].corr(method='pearson')
+        
+        correlations = []
+        for i, (k1, ind1) in enumerate(numeric_cols):
+            for j, (k2, ind2) in enumerate(numeric_cols):
+                if i >= j:
+                    continue
+                corr_val = corr_matrix.iloc[i, j]
+                if pd.isna(corr_val):
+                    continue
+                # Count non-null pairs
+                valid_pairs = df[[k1, k2]].dropna()
+                correlations.append({
+                    "var1": {"key": k1, "name": ind1["name"], "category": ind1.get("category", "General")},
+                    "var2": {"key": k2, "name": ind2["name"], "category": ind2.get("category", "General")},
+                    "r": round(float(corr_val), 4),
+                    "abs_r": round(abs(float(corr_val)), 4),
+                    "n": len(valid_pairs),
+                })
+        
+        correlations.sort(key=lambda x: x["abs_r"], reverse=True)
+        return {"correlations": correlations, "count": len(correlations)}
+    else:
+        return {"correlations": [], "count": 0}
 
 @app.post("/api/analyze/outliers")
 def analyze_outliers(request: dict = Body(...)):
