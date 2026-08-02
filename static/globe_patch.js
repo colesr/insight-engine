@@ -1309,9 +1309,15 @@
     var body = document.getElementById('worldDigestBody');
     if (body) body.innerHTML = '<div class="text-xs text-slate-500">Loading&hellip;</div>';
     fetch('/api/news/world-digest', { cache: 'no-store' })
-      .then(function(r) { return r.json(); })
+      .then(function(r) { 
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json(); 
+      })
       .then(render)
-      .catch(function() { render(null); });
+      .catch(function(e) { 
+        console.warn('World Digest fetch failed:', e.message);
+        render(null); 
+      });
   }
 
   window.toggleWorldDigest = toggleDigest;
