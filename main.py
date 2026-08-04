@@ -2418,14 +2418,6 @@ def news_world_digest():
         print(f"world-digest bridge failed: {e}")
         return fallback
 
-# ============================================================================
-# HEALTH CHECK
-# ============================================================================
-
-@app.get("/api/health")
-def health():
-    return {"status": "ok", "datasets_loaded": len(_loaded_datasets), "cache_entries": len(_cache)}
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=7860)
