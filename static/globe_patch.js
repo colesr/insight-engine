@@ -1191,6 +1191,18 @@
       })
       .catch(function(e) {
         console.warn('globe_standalone: coastline load failed:', e.message);
+        // Fallback to simple wireframe sphere when coastline data is unavailable
+        var fallbackGeo = new THREE.SphereGeometry(R + 0.3, 32, 32);
+        var fallbackMat = new THREE.MeshBasicMaterial({
+          color: 0x1e3a5f,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.3,
+          wireframeLinewidth: 1
+        });
+        var fallbackMesh = new THREE.Mesh(fallbackGeo, fallbackMat);
+        group.add(fallbackMesh);
+        console.log('globe_standalone: coastlines fallback to wireframe');
       });
   }
 
