@@ -532,7 +532,7 @@ def fetch_worldbank(
             if current is None or (year and year > current_year):
                 records[country][ind_id] = round(float(value), 3)
                 records[country]["_year_" + ind_id] = year
-        time.sleep(0.15)  # Rate limit
+        asyncio.sleep(0.15)  # Rate limit
 
     # Clean up internal year fields
     result_records = []
@@ -1194,22 +1194,27 @@ def analyze_correlations(request: dict = Body(...)):
         corr_matrix = df[numeric_keys].corr(method='pearson')
         
         correlations = []
-        for i, (k1, ind1) in enumerate(numeric_cols):
-            for j, (k2, ind2) in enumerate(numeric_cols):
-                if i >= j:
-                    continue
-                corr_val = corr_matrix.iloc[i, j]
-                if pd.isna(corr_val):
-                    continue
-                # Count non-null pairs
-                valid_pairs = df[[k1, k2]].dropna()
-                correlations.append({
-                    "var1": {"key": k1, "name": ind1["name"], "category": ind1.get("category", "General")},
-                    "var2": {"key": k2, "name": ind2["name"], "category": ind2.get("category", "General")},
-                    "r": round(float(corr_val), 4),
-                    "abs_r": round(abs(float(corr_val)), 4),
-                    "n": len(valid_pairs),
-                })
+        # Create a mask to get upper triangle without diagonal
+        mask = np.triu(np.ones_like(corr_matrix, dtype=bool), k=1)
+        # Get indices where correlations are not null
+        valid_mask = ~pd.isnull(corr_matrix).values & mask
+        rows, cols = np.where(valid_mask)
+        
+        for i, j in zip(rows, cols):
+            k1, ind1 = numeric_cols[i]
+            k2, ind2 = numeric_cols[j]
+            corr_val = corr_matrix.iloc[i, j]
+            if pd.isna(corr_val):
+                continue
+            # Count non-null pairs
+            valid_pairs = df[[k1, k2]].dropna()
+            correlations.append({
+                "var1": {"key": k1, "name": ind1["name"], "category": ind1.get("category", "General")},
+                "var2": {"key": k2, "name": ind2["name"], "category": ind2.get("category", "General")},
+                "r": round(float(corr_val), 4),
+                "abs_r": round(abs(float(corr_val)), 4),
+                "n": len(valid_pairs),
+            })
         
         correlations.sort(key=lambda x: x["abs_r"], reverse=True)
         return {"correlations": correlations, "count": len(correlations)}
