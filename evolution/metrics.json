@@ -1,15 +1,5 @@
 [
   {
-    "ts": "2026-06-19T11:21:26.454480+00:00",
-    "health_ms": 1.7,
-    "indicator_count": 269,
-    "builtin_dataset_count": 12,
-    "wb_preset_count": 9,
-    "globe_country_count": 40,
-    "rss_feed_count": 10,
-    "correlation_ms_50x6": 18.6
-  },
-  {
     "ts": "2026-06-20T10:08:36.130087+00:00",
     "health_ms": 1.7,
     "indicator_count": 269,
@@ -898,5 +888,15 @@
     "globe_country_count": 40,
     "rss_feed_count": 10,
     "correlation_ms_50x6": 16.6
+  },
+  {
+    "ts": "2026-09-19T11:46:57.137305+00:00",
+    "health_ms": 1.0,
+    "indicator_count": 269,
+    "builtin_dataset_count": 12,
+    "wb_preset_count": 9,
+    "globe_country_count": 40,
+    "rss_feed_count": 10,
+    "correlation_ms_50x6": 8.3
   }
 ]
