@@ -1188,38 +1188,39 @@ def analyze_correlations(request: dict = Body(...)):
         if key and key in df.columns and pd.api.types.is_numeric_dtype(df[key]):
             numeric_cols.append((key, ind))
 
-    # Use pandas corr() method for better performance on all pairs
-    if len(numeric_cols) > 1:
-        numeric_keys = [k for k, _ in numeric_cols]
-        corr_matrix = df[numeric_keys].corr(method='pearson')
-        
-        correlations = []
-        # Create a mask to get upper triangle without diagonal
-        mask = np.triu(np.ones_like(corr_matrix, dtype=bool), k=1)
-        # Get indices where correlations are not null
-        valid_mask = ~pd.isnull(corr_matrix).values & mask
-        rows, cols = np.where(valid_mask)
-        
-        for i, j in zip(rows, cols):
-            k1, ind1 = numeric_cols[i]
-            k2, ind2 = numeric_cols[j]
-            corr_val = corr_matrix.iloc[i, j]
-            if pd.isna(corr_val):
-                continue
-            # Count non-null pairs
-            valid_pairs = df[[k1, k2]].dropna()
-            correlations.append({
-                "var1": {"key": k1, "name": ind1["name"], "category": ind1.get("category", "General")},
-                "var2": {"key": k2, "name": ind2["name"], "category": ind2.get("category", "General")},
-                "r": round(float(corr_val), 4),
-                "abs_r": round(abs(float(corr_val)), 4),
-                "n": len(valid_pairs),
-            })
-        
-        correlations.sort(key=lambda x: x["abs_r"], reverse=True)
-        return {"correlations": correlations, "count": len(correlations)}
-    else:
+    # Early return if insufficient columns for correlations
+    if len(numeric_cols) < 2:
         return {"correlations": [], "count": 0}
+
+    # Use pandas corr() method for better performance on all pairs
+    numeric_keys = [k for k, _ in numeric_cols]
+    corr_matrix = df[numeric_keys].corr(method='pearson')
+    
+    correlations = []
+    # Create a mask to get upper triangle without diagonal
+    mask = np.triu(np.ones_like(corr_matrix, dtype=bool), k=1)
+    # Get indices where correlations are not null
+    valid_mask = ~pd.isnull(corr_matrix).values & mask
+    rows, cols = np.where(valid_mask)
+    
+    for i, j in zip(rows, cols):
+        k1, ind1 = numeric_cols[i]
+        k2, ind2 = numeric_cols[j]
+        corr_val = corr_matrix.iloc[i, j]
+        if pd.isna(corr_val):
+            continue
+        # Count non-null pairs
+        valid_pairs = df[[k1, k2]].dropna()
+        correlations.append({
+            "var1": {"key": k1, "name": ind1["name"], "category": ind1.get("category", "General")},
+            "var2": {"key": k2, "name": ind2["name"], "category": ind2.get("category", "General")},
+            "r": round(float(corr_val), 4),
+            "abs_r": round(abs(float(corr_val)), 4),
+            "n": len(valid_pairs),
+        })
+    
+    correlations.sort(key=lambda x: x["abs_r"], reverse=True)
+    return {"correlations": correlations, "count": len(correlations)}
 
 @app.post("/api/analyze/outliers")
 def analyze_outliers(request: dict = Body(...)):
