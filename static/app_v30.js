@@ -84,14 +84,21 @@ function vals(key, data = dataset) {
 }
 function getCorrelations(key, data = dataset) {
   const validVars = [];
+  // Pre-compute which variables have valid data to avoid repeated checks
+  const validDataMap = new Map();
   for (let i = 0; i < variableDefs.length; i++) {
     const v = variableDefs[i];
     if (v.key !== key) {
+      let hasValidData = false;
       for (let j = 0; j < data.length; j++) {
         if (data[j][v.key] != null) {
-          validVars.push(v);
+          hasValidData = true;
           break;
         }
+      }
+      if (hasValidData) {
+        validVars.push(v);
+        validDataMap.set(v.key, true);
       }
     }
   }
@@ -99,6 +106,8 @@ function getCorrelations(key, data = dataset) {
   const keyVals = vals(key, data);
   for (let i = 0; i < validVars.length; i++) {
     const v = validVars[i];
+    // Skip if we already know this variable doesn't have valid data
+    if (!validDataMap.get(v.key)) continue;
     const vVals = vals(v.key, data);
     const r = M.pearson(keyVals, vVals);
     if (!isNaN(r)) correlations.push({ ...v, r });
