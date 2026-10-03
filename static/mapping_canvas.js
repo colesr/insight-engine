@@ -460,7 +460,10 @@
   // In case the canvas DOM isn't available right away (script-order edge cases)
   var retries = 0;
   var retryId = setInterval(function() {
-    if (init() || ++retries > 60) clearInterval(retryId);
+    if (init() || ++retries > 60) {
+      clearInterval(retryId);
+      retryId = null;
+    }
   }, 250);
 
   console.log('mapping_canvas: module loaded (' + cards.length + ' card(s), ' + connections.length + ' connection(s) restored)');
